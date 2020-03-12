@@ -4,6 +4,9 @@
  * This generated file contains a sample Kotlin application project to get you started.
  */
 
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+
 plugins {
     // Apply the Kotlin JVM plugin to add support for Kotlin.
     id("org.jetbrains.kotlin.jvm") version "1.3.61"
@@ -38,4 +41,9 @@ dependencies {
 application {
     // Define the main class for the application.
     mainClassName = "io.toon.jack.AppKt"
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    kotlinOptions.freeCompilerArgs = listOf("-Xallow-result-return-type")
+
 }
