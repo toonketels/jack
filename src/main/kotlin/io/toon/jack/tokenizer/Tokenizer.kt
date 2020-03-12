@@ -2,6 +2,7 @@ package io.toon.jack.tokenizer
 
 import io.toon.jack.tokenizer.TokenType.*
 
+// @TODO get rid of enum as no longer useful
 enum class TokenType(private val representation: String) {
     KEYWORD("keyword"),
     SYMBOL("symbol"),
@@ -14,7 +15,31 @@ enum class TokenType(private val representation: String) {
     }
 }
 
-data class Token(val type: TokenType, val value: String)
+interface Token {
+    val value: String
+    val type: TokenType
+}
+
+data class KeywordToken(override val value: String): Token {
+    override val type: TokenType = KEYWORD
+}
+
+data class SymbolToken(override val value: String): Token {
+    override val type: TokenType = SYMBOL
+}
+
+data class IdentifierToken(override val value: String): Token {
+    override val type: TokenType = IDENTIFIER
+}
+
+data class IntToken(override val value: String) : Token {
+    override val type: TokenType = INT_CONST
+}
+
+data class StringToken(override val value: String) : Token {
+    override val type: TokenType = STRING_CONST
+}
+
 data class TokenResult(val remainder: String, val token: Token? = null)
 
 typealias Tokenizer = (String) -> TokenResult?
@@ -29,7 +54,7 @@ fun parseString(input: String): TokenResult? {
 
     if (input.startsWith('"')) {
         val match = input.drop(1).takeWhile { it != '"' }
-        return TokenResult(input.substring(match.length + 2), Token(STRING_CONST, match))
+        return TokenResult(input.substring(match.length + 2), StringToken(match))
     }
 
     return null
@@ -40,7 +65,7 @@ fun parseKeyword(input: String): TokenResult? {
     val match = KEYWORDS.find { it == boundary }
 
     if (match != null) {
-        return TokenResult(input.substring(match.length), Token(KEYWORD, match))
+        return TokenResult(input.substring(match.length), KeywordToken(match))
     }
 
     return null
@@ -62,7 +87,7 @@ fun parseSymbol(input: String): TokenResult? {
             "&" -> "&amp;"
             else  -> char.toString()
         }
-        return TokenResult(input.substring(1), Token(SYMBOL, value))
+        return TokenResult(input.substring(1), SymbolToken(value))
     }
 
     return null
@@ -98,7 +123,7 @@ fun parseInt(input: String): TokenResult? {
     val isNumberic = boundary.isNotBlank() && boundary.all { it.isDigit() }
 
     if (isNumberic) {
-        return TokenResult(input.substring(boundary.length), Token(INT_CONST, boundary))
+        return TokenResult(input.substring(boundary.length), IntToken(boundary))
     }
 
     return null
@@ -110,7 +135,7 @@ fun parseIdentifier(input: String): TokenResult? {
     val isIdentifier = boundary.isNotEmpty() && boundary.all { it.isLetterOrDigit() || it == '_' } && !boundary.first().isDigit()
 
     if (isIdentifier) {
-        return TokenResult(input.substring(boundary.length), Token(IDENTIFIER, boundary))
+        return TokenResult(input.substring(boundary.length), IdentifierToken(boundary))
     }
 
     return null

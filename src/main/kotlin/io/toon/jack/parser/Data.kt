@@ -5,7 +5,7 @@ interface Node {}
 data class ClassNode(
         val name: String,
         val classVarDeclarations: List<ClassVarDeclarationNode> = listOf(),
-        val subroutineDeclaration: List<SubroutineDeclarationNode> = listOf()): Node
+        val subroutineDeclarations: List<SubroutineDeclarationNode> = listOf()): Node
 
 data class ClassVarDeclarationNode(
         val staticModifier: ClassVarStaticModifier,

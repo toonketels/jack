@@ -7,11 +7,11 @@ class JackTokenizerTest {
     @Test fun basicTest() {
         val tokenizer = JackTokenizer("let x = \"Hello world\";")
         val expected = listOf(
-                Token(KEYWORD, "let"),
-                Token(IDENTIFIER, "x"),
-                Token(SYMBOL, "="),
-                Token(STRING_CONST, "Hello world"),
-                Token(SYMBOL, ";")
+                KeywordToken("let"),
+                IdentifierToken("x"),
+                SymbolToken("="),
+                StringToken("Hello world"),
+                SymbolToken(";")
         )
         assertEquals(expected, tokenizer.toList())
     }
