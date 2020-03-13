@@ -18,7 +18,9 @@ private fun <E> MutableList<E>.eat(): E {
     return taken
 }
 
-fun parseClass(tokens: Tokens): Result<Node?> {
+fun parseClass(tokens: Tokens): Result<ClassNode> = require(maybeParseClass(tokens), "class")
+
+fun maybeParseClass(tokens: Tokens): Result<ClassNode?> {
 
     if (parseClassKeyword(tokens.peak()).isFailure) {
         return success(null)
@@ -104,8 +106,43 @@ fun parseStatements(tokens: Tokens): Result<List<Statement>> {
 fun parseStatement(tokens: Tokens): Result<Statement?> {
     val orMaybe = orMaybe(tokens,
             ::parseLetStatement,
-            ::parseIfStatement)
+            ::parseIfStatement,
+            ::parseWhileStatement,
+            ::parseReturnStatement)
     return orMaybe
+}
+
+fun parseReturnStatement(tokens: Tokens): Result<ReturnStatement?> {
+
+    if (parseKeyword("return")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _a ) = parseKeyword("return")(tokens.eat())
+        val ( expression ) = parseExpression(tokens)
+        val ( _b ) = parseSymbol(";")(tokens.eat())
+
+        ReturnStatement(expression)
+    }
+}
+
+
+fun parseWhileStatement(tokens: Tokens): Result<WhileStatement?> {
+
+    if (parseKeyword("while")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _a ) = parseKeyword("while")(tokens.eat())
+        val ( _b ) = parseSymbol("(")(tokens.eat())
+        val ( predicate ) = require(parseExpression(tokens), "predicate in while statement")
+        val ( _c ) = parseSymbol(")")(tokens.eat())
+        val ( _d ) = parseSymbol("{")(tokens.eat())
+        val ( statements ) = parseStatements(tokens)
+        val ( _e ) = parseSymbol("}")(tokens.eat())
+
+        WhileStatement(predicate, statements)
+    }
 }
 
 fun parseIfStatement(tokens: Tokens): Result<IfStatement?> {
@@ -116,7 +153,7 @@ fun parseIfStatement(tokens: Tokens): Result<IfStatement?> {
 
         val ( _a ) = parseKeyword("if")(tokens.eat())
         val ( _b ) = parseSymbol("(")(tokens.eat())
-        val ( predicate ) = parseExpression(tokens)
+        val ( predicate ) = require(parseExpression(tokens), "predicate in if statement")
         val ( _c ) = parseSymbol(")")(tokens.eat())
         val ( _d ) = parseSymbol("{")(tokens.eat())
         val ( statements ) = parseStatements(tokens)
@@ -145,7 +182,7 @@ fun parseLetStatement(tokens: Tokens): Result<LetStatement?> {
         val ( _a ) = parseKeyword("let")(tokens.eat())
         val ( varName ) = parseVarName(tokens.eat())
         val ( _b ) = parseSymbol("=")(tokens.eat())
-        val ( rhs ) = parseExpression(tokens)
+        val ( rhs ) = require(parseExpression(tokens), "right hand side of ${varName}")
         val ( _c ) = parseSymbol(";")(tokens.eat())
 
 
@@ -153,7 +190,19 @@ fun parseLetStatement(tokens: Tokens): Result<LetStatement?> {
     }
 }
 
-fun parseExpression(tokens: Tokens): Result<Expression> {
+// @TODO require and maybe? and return result immedately
+fun <T> require(result: Result<T?>, name: String = "something"): Result<T> {
+
+    if (result.isSuccess && result.getOrNull() == null) {
+        return failExceptionally("expected a value for ${name} but it was empty")
+    }
+
+    return result as Result<T>
+}
+
+fun parseExpression(tokens: Tokens): Result<Expression?> {
+
+    if (parseVarName(tokens.peak()).isFailure) return success(null);
 
     return requireAll {
 

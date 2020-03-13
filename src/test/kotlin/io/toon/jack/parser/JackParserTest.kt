@@ -2,10 +2,12 @@ package io.toon.jack.parser
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import io.toon.jack.parser.ClassVarStaticModifier.FIELD
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
 import io.toon.jack.tokenizer.JackTokenizer
+import org.junit.Ignore
 import org.junit.Test
 
 
@@ -146,6 +148,19 @@ class JackParserTest {
     }
 
     @Test
+    fun testLetStatementMissingExpression() {
+        val source = """
+            let x = ;
+        """.trimIndent()
+
+        val result = parseStatement(JackTokenizer(source).toMutableList())
+
+        assertThat(result.isFailure).isTrue()
+
+        result.onFailure { assertThat(it.message).isEqualTo("expected a value for right hand side of x but it was empty") }
+    }
+
+    @Test
     fun testIfStatement() {
         val source = """
             if ( x ) {  
@@ -162,6 +177,111 @@ class JackParserTest {
                 listOf(LetStatement("y", Expression("x"))),
                 listOf(LetStatement("y", Expression("z")))
         ))
+    }
+
+    @Test
+    fun testWhileStatement() {
+        val source = """
+            while ( x ) {
+                let x = y;
+            }
+        """.trimIndent()
+
+        val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as WhileStatement
+
+        assertThat(result).isEqualTo(WhileStatement(
+                Expression("x"),
+                listOf(LetStatement("x", Expression("y")))
+        ))
+    }
+
+    @Test
+    fun testReturnStatement() {
+        val source = """
+            return x;
+        """.trimIndent()
+
+        val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as ReturnStatement
+
+        assertThat(result).isEqualTo(ReturnStatement(Expression("x")))
+    }
+
+    @Test
+    fun testReturnStatementWithoutExpression() {
+        val source = """
+            return ;
+        """.trimIndent()
+
+        val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as ReturnStatement
+
+        assertThat(result).isEqualTo(ReturnStatement())
+    }
+
+    @Test
+    fun testClassFailStart() {
+        val source = """
+            return ;
+        """.trimIndent()
+
+        val result = parseClass(JackTokenizer(source).toMutableList())
+
+        assertThat(result.isFailure, "class should start with class keyword").isTrue()
+
+        result.onFailure { assertThat(it.message).isEqualTo("expected a value for class but it was empty") }
+    }
+
+    @Test
+    fun testClassFailParse() {
+        val source = """
+            class Square {
+                constructor Square new () { return x; }
+                field int size;
+            }
+        """.trimIndent()
+
+        val result = parseClass(JackTokenizer(source).toMutableList())
+
+        assertThat(result.isFailure, "fields need to go above subroutines").isTrue()
+
+        result.onFailure { assertThat(it.message).isEqualTo("expected symbol } but got field instead") }
+    }
+
+    @Test
+    fun testClassAll() {
+        val source = """
+            class Square {
+            
+                field int x, y;
+                static Color fill;
+                
+                constructor Square new(int x, int y) { return x; }
+                
+                method int area() { return x; }
+                
+                function int random() { 
+                     let z = x;
+                     return z;
+                }
+            }
+        """.trimIndent()
+
+        val result = parseClass(JackTokenizer(source).toMutableList())
+
+        assertThat(result.isSuccess).isTrue()
+
+        result.onSuccess { assertThat(it).isNotNull() }
+    }
+
+    @Ignore("do statement still needs to be implemented")
+    @Test
+    fun testDoStatement() {
+        val source = """
+            do x.pay(y);
+        """.trimIndent()
+
+        val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as DoStatement
+
+        assertThat(result).isEqualTo(DoStatement(SubroutineCall("x")))
     }
 
     private fun emptyBody(): SubroutineBodyNode = SubroutineBodyNode(listOf(), listOf())

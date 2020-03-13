@@ -62,7 +62,23 @@ data class IfStatement(
         val altStatements: List<Statement> = listOf()
 ): Statement
 
+data class DoStatement(
+        val subroutineCall: SubroutineCall
+): Statement
+
+data class ReturnStatement(
+        val expression: Expression? = null
+): Statement
+
+data class WhileStatement(
+        val predicate: Expression,
+        val statements: List<Statement>
+): Statement
+
 data class Expression(
         // @TODO better expressions
         val term: String
 ): Node
+
+// @TODO is way more complex than this
+data class SubroutineCall(val varName: String): Node
