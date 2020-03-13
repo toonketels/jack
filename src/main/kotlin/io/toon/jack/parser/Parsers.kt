@@ -7,7 +7,10 @@ import io.toon.jack.tokenizer.*
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 
+typealias Tokens = MutableList<Token>
+
 private fun <E> MutableList<E>.peak(): E = first()
+
 
 private fun <E> MutableList<E>.eat(): E {
     val taken = first()
@@ -15,8 +18,7 @@ private fun <E> MutableList<E>.eat(): E {
     return taken
 }
 
-
-fun parseClass(tokens: MutableList<Token>): Result<Node?> {
+fun parseClass(tokens: Tokens): Result<Node?> {
 
     if (parseClassKeyword(tokens.peak()).isFailure) {
         return success(null)
@@ -39,9 +41,8 @@ fun parseClass(tokens: MutableList<Token>): Result<Node?> {
     }
 }
 
-fun parseClassVarDeclaration(tokens: MutableList<Token>): Result<ClassVarDeclarationNode?> {
+fun parseClassVarDeclaration(tokens: Tokens): Result<ClassVarDeclarationNode?> {
 
-    // Bail out if we dont start with static or fieldm
     if (parseStaticModifier(tokens.peak()).isFailure) {
         return success(null)
     }
@@ -50,35 +51,19 @@ fun parseClassVarDeclaration(tokens: MutableList<Token>): Result<ClassVarDeclara
 
         val ( modifier ) = parseStaticModifier(tokens.eat())
         val ( type ) = parseType(tokens.eat())
-        val ( name ) = parseVarName(tokens.eat())
-        val ( otherVarNames ) = zeroOrMore(tokens, ::parseOtherVarName)
+        val ( varNames ) = atLeastOne(tokens, tryThanEat(::parseVarName), tryThanEat(parseSymbol(",")))
         val ( _ ) = parseSymbol(";")(tokens.eat())
 
         ClassVarDeclarationNode(
                 staticModifier = modifier,
                 typeName = type,
-                varName = name,
-                otherVarNames = otherVarNames)
+                varNames = varNames)
     }
 }
 
 operator fun <T> Result<T>.component1() = getOrThrow()
 
-fun parseOtherVarName(tokens: MutableList<Token>): Result<String?> {
-
-    if (parseSymbol(",")(tokens.peak()).isFailure) {
-        return success(null)
-    }
-
-    return requireAll {
-        val ( _ ) = parseSymbol(",")(tokens.eat())
-        val ( name ) = parseIdentifier()(tokens.eat())
-
-        name
-    }
-}
-
-fun parseSubroutineDeclaration(tokens: MutableList<Token>): Result<SubroutineDeclarationNode?> {
+fun parseSubroutineDeclaration(tokens: Tokens): Result<SubroutineDeclarationNode?> {
 
     if (parseSubroutineType(tokens.peak()).isFailure) {
         return success(null)
@@ -90,9 +75,119 @@ fun parseSubroutineDeclaration(tokens: MutableList<Token>): Result<SubroutineDec
         val ( returnType ) = parseSubroutineReturnType(tokens.eat())
         val ( subroutineName ) = parseSubroutineName(tokens.eat())
         val ( _ ) = parseSymbol("(")(tokens.eat())
+        val ( parameters ) = parseParameters(tokens)
         val ( _ ) = parseSymbol(")")(tokens.eat())
+        val ( body ) = parseSubroutineBody(tokens)
 
-        SubroutineDeclarationNode(subroutineType, returnType, subroutineName, listOf())
+        SubroutineDeclarationNode(subroutineType, returnType, subroutineName, parameters, body)
+    }
+}
+
+fun parseSubroutineBody(tokens: Tokens): Result<SubroutineBodyNode> {
+
+    return requireAll {
+
+        val ( _ ) = parseSymbol("{")(tokens.eat())
+        val ( varDeclarations) = zeroOrMore(tokens, ::parseSubroutineVarDeclaration)
+        val ( statements ) = zeroOrMore(tokens, ::parseStatement)
+        val ( _ ) = parseSymbol("}")(tokens.eat())
+
+        SubroutineBodyNode(varDeclarations, listOf())
+    }
+
+}
+
+fun parseStatements(tokens: Tokens): Result<List<Statement>> {
+    return zeroOrMore(tokens, ::parseStatement)
+}
+
+fun parseStatement(tokens: Tokens): Result<Statement?> {
+    return orMaybe(tokens,
+            ::parseLetStatement,
+            ::parseIfStatement)
+}
+
+fun parseIfStatement(tokens: Tokens): Result<IfStatement?> {
+
+    if (parseKeyword("if")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _ ) = parseKeyword("if")(tokens.eat())
+        val ( _ ) = parseSymbol("(")(tokens.eat())
+        val ( predicate ) = parseExpression(tokens)
+        val ( _ ) = parseSymbol(")")(tokens.eat())
+        val ( _ ) = parseSymbol("{")(tokens.eat())
+        val ( statements ) = parseStatements(tokens)
+        val ( _ ) = parseSymbol("}")(tokens.eat())
+
+        val altStatements= if (parseKeyword("else")(tokens.peak()).isFailure) {
+            listOf()
+        } else {
+            val ( _ ) = parseKeyword("else")(tokens.eat())
+            val ( _ ) = parseSymbol("{")(tokens.eat())
+            val ( alternative ) = parseStatements(tokens)
+            val ( _ ) = parseSymbol("}")(tokens.eat())
+            alternative
+        }
+
+        IfStatement(predicate, statements, altStatements)
+    }
+}
+
+fun parseLetStatement(tokens: Tokens): Result<LetStatement?> {
+
+    if (parseKeyword("let")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _ ) = parseKeyword("let")(tokens.eat())
+        val ( varName ) = parseVarName(tokens.eat())
+        val ( _ ) = parseSymbol("=")(tokens.eat())
+        val ( rhs ) = parseExpression(tokens)
+        val ( _ ) = parseSymbol(";")(tokens.eat())
+
+
+        LetStatement(varName, rhs)
+    }
+}
+
+fun parseExpression(tokens: Tokens): Result<Expression> {
+
+    return requireAll {
+
+        val ( varName ) = parseVarName(tokens.eat())
+
+        Expression(varName)
+    }
+}
+
+fun parseSubroutineVarDeclaration(tokens: Tokens): Result<SubroutineVarDeclarationNode?> {
+
+    if (parseKeyword("var")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+        val ( _ ) = parseKeyword("var")(tokens.eat())
+        val ( type ) = parseType(tokens.eat())
+        val ( varNames ) = atLeastOne(tokens, eat(::parseVarName), tryThanEat(parseSymbol(",")))
+        val ( _ ) = parseSymbol(";")(tokens.eat())
+
+        SubroutineVarDeclarationNode(type, varNames)
+    }
+}
+
+fun parseParameters(tokens: Tokens): Result<List<Parameter>> {
+    return zeroOrMore(tokens, ::parseParameter, tryThanEat(parseSymbol(",")))
+}
+
+fun parseParameter(tokens: Tokens): Result<Parameter?> {
+    if (parseType(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+        val ( type ) = parseType(tokens.eat())
+        val ( name ) = parseVarName(tokens.eat())
+
+        Parameter(type, name)
     }
 }
 
@@ -124,6 +219,22 @@ fun parseSubroutineType(token: Token): Result<SubroutineDeclarationType> {
     } else {
         failExceptionally("expected a subroutine type but got ${token.value} as ${token.type}")
     }
+}
+
+fun <R> eat(parse: (Token) -> Result<R>): (Tokens) -> Result<R> = fun(tokens): Result<R> {
+    return parse(tokens.eat())
+}
+
+fun <R> tryThanEat(parse: (Token) -> Result<R>): (Tokens) -> Result<R?> = fun(tokens): Result<R?> {
+
+        if (parse(tokens.peak()).isFailure) return success(null)
+
+        return parse(tokens.eat())
+}
+
+
+fun parseKeyword(keyword: String): (Token) -> Result<Unit> = { token ->
+    if (token is KeywordToken && token.value == keyword) success(Unit) else failExceptionally("expected keyword $keyword but got ${token.value} instead")
 }
 
 fun parseSymbol(symbol: String): (Token) -> Result<Unit> = { token ->
