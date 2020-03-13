@@ -1,6 +1,5 @@
 package io.toon.jack.parser
 
-import io.toon.jack.tokenizer.Token
 import kotlin.Result.Companion.failure
 import kotlin.Result.Companion.success
 
@@ -29,7 +28,7 @@ fun <I, R> orMaybe(input: I, vararg parsers: (I) -> Result<R?>): Result<R?> {
     val failures = mutableListOf<Throwable>()
     for (parse in parsers) {
         parse(input)
-                .onFailure { failures.add(it) }
+                .onFailure { return failure(it) }
                 .onSuccess { if (it !=null) return success(it) }
     }
     return success(null)

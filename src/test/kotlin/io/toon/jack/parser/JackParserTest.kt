@@ -1,14 +1,12 @@
 package io.toon.jack.parser
 
 import assertk.assertThat
-import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.isTrue
 import io.toon.jack.parser.ClassVarStaticModifier.FIELD
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
 import io.toon.jack.tokenizer.JackTokenizer
 import org.junit.Test
-import kotlin.test.Ignore
 
 
 class JackParserTest {
@@ -92,7 +90,7 @@ class JackParserTest {
             constructor Square new(int size, Color fill) {
                 var int x, y;
                 
-                return Square;
+                // return Square;
             }
         """.trimIndent()
 
@@ -108,7 +106,6 @@ class JackParserTest {
                 ), listOf())))
     }
 
-    @Ignore("out of order statements dont fail atm")
     @Test
     fun testOutOfOrderStatementsShouldFail() {
         val source = """
@@ -120,23 +117,21 @@ class JackParserTest {
         val result = parseSubroutineDeclaration(JackTokenizer(source).toMutableList())
 
         assertThat(result.isFailure, "out of order statements should result in errors").isTrue()
+        result.onFailure { assertThat(it.message).isEqualTo("expected symbol ( but got { instead") }
     }
 
-    @Ignore("missing semicolons dont fail atm")
     @Test
     fun testMissingSemicolonShouldFail() {
         val source = """
-            if ( x ) {  
-                let y = x
-            } else {
-                let y = z;
+            if (x) {
+                let y = x,
             }
         """.trimIndent()
 
-        val result = parseStatement(JackTokenizer(source).toMutableList())
-
+        val result = parseIfStatement(JackTokenizer(source).toMutableList())
 
         assertThat(result.isFailure, "missing semicolon should result in failure").isTrue()
+        result.onFailure { assertThat(it.message).isEqualTo("expected symbol ; but got , instead") }
     }
 
     @Test
