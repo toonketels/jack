@@ -202,30 +202,26 @@ fun <T> require(result: Result<T?>, name: String = "something"): Result<T> {
     return result as Result<T>
 }
 
+fun parseTerm(tokens: Tokens): Result<TermNode?> {
+    return orMaybe(tokens,
+            ::parseIntegerConstant,
+            ::parseStringConstant,
+            ::parseKeywordConstant,
+            ::parseArrayAccess,
+            ::parseVarName,
+            ::parseTermExpression,
+            ::parseUnaryOp);
+}
+
 fun parseExpression(tokens: Tokens): Result<Expression?> {
 
-    val term  = orMaybe(tokens, ::parseIntegerConstant, ::parseStringConstant, ::parseArrayAccess, ::parseVarName2)
+    val term = parseTerm(tokens);
 
     term.onFailure { return failure(it) }
             .onSuccess { return if (it != null) success(Expression(it)) else success(null) }
 
     // @TODO unreachable code?
     return success(null)
-//    if (term.isFailure) failure<>()
-//    if (term.isSuccess) success(Expression(term.getOrNull()!!))
-//
-//    val intConst = attempt(tokens, ::parseIntegerConstant)
-//    if (intConst != null) return success(Expression(intConst))
-//
-//    val ( stringConst ) = parseStringConstant(tokens)
-//    if (stringConst != null) return success(Expression(stringConst))
-//
-//    val ( arAccess ) = parseArrayAccess(tokens)
-//    if (arAccess != null) return success(Expression(arAccess))
-//
-//    val varName = attempt(tokens, ::parseVarName)
-//    return success(Expression(varName!!))
-
 }
 
 fun<R> attempt(tokens: Tokens, parse: (Token) -> Result<R>): R? {
@@ -319,7 +315,7 @@ fun parseVarName(token: Token): Result<VarName> = if (token is IdentifierToken)
     success(VarName(token.value)) else
     failExceptionally("var name ${token.value} is not an identifier")
 
-fun parseVarName2(tokens: Tokens): Result<VarName?> = if (tokens.peak() is IdentifierToken)
+fun parseVarName(tokens: Tokens): Result<VarName?> = if (tokens.peak() is IdentifierToken)
     success(VarName(tokens.eat().value)) else
     success(null)
 
@@ -355,12 +351,45 @@ fun parseStringConstant(tokens: Tokens): Result<StringConstant?> = if (tokens.pe
     success(StringConstant(tokens.eat().value))
     else success(null)
 
+fun parseKeywordConstant(tokens: Tokens): Result<KeywordConstant?> = tokens.peak().let {
+    if (it is KeywordToken && it.value in listOf("true", "false", "this", "null"))
+        success(KeywordConstant(it.value))
+        else success(null)
+}
 
+fun parseTermExpression(tokens: Tokens): Result<TermExpression?> {
+
+    if (parseSymbol("(")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _a ) = parseSymbol("(")(tokens.eat())
+        val ( expression ) = require(parseExpression(tokens), "expression")
+        val ( _b ) = parseSymbol(")")(tokens.eat())
+
+        TermExpression(expression)
+    }
+}
+
+fun parseUnaryOp(tokens: Tokens): Result<UnaryOp?> {
+
+    if (parseSymbol("-")(tokens.peak()).isFailure && parseSymbol("~")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val operator  = tokens.eat().value
+        val ( term ) = require(parseTerm(tokens), "term")
+
+        UnaryOp(operator, term)
+    }
+}
 
 fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> {
 
      tokens.peak(2)
-             .onFailure { return success(null) }
+             .onFailure {
+                 return success(null)
+             }
              .onSuccess {
                  val (varName, symbol) = it
 
