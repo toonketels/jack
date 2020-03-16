@@ -1,12 +1,10 @@
 package io.toon.jack.parser
 
 import assertk.assertThat
-import assertk.assertions.isEqualTo
-import assertk.assertions.isNotNull
-import assertk.assertions.isTrue
+import assertk.assertions.*
 import io.toon.jack.parser.ClassVarStaticModifier.FIELD
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
-import io.toon.jack.tokenizer.JackTokenizer
+import io.toon.jack.tokenizer.*
 import org.junit.Ignore
 import org.junit.Test
 
@@ -32,7 +30,7 @@ class JackParserTest {
 
         val result = parseClassVarDeclaration(JackTokenizer(source).toMutableList()).getOrThrow()!!
 
-        assertThat(result).isEqualTo(ClassVarDeclarationNode(FIELD, "int",  listOf("x", "y")))
+        assertThat(result).isEqualTo(ClassVarDeclarationNode(FIELD, "int",  listOf(VarName("x"), VarName("y"))))
     }
 
     @Test
@@ -45,7 +43,7 @@ class JackParserTest {
                 CONSTRUCTOR,
                 "Square",
                 "new",
-                listOf(Parameter("int", "size")),
+                listOf(Parameter("int", VarName("size"))),
                 emptyBody()))
     }
 
@@ -59,7 +57,7 @@ class JackParserTest {
                 CONSTRUCTOR,
                 "Square",
                 "new",
-                listOf(Parameter("int", "size"), Parameter("Color", "fill")),
+                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
                 emptyBody()))
     }
 
@@ -78,11 +76,11 @@ class JackParserTest {
                 CONSTRUCTOR,
                 "Square",
                 "new",
-                listOf(Parameter("int", "size"), Parameter("Color", "fill")),
+                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
                 SubroutineBodyNode(
                     listOf(
-                        SubroutineVarDeclarationNode("int", listOf("x", "y")),
-                        SubroutineVarDeclarationNode("Color", listOf("border"))),
+                        SubroutineVarDeclarationNode("int", listOf(VarName("x"), VarName("y"))),
+                        SubroutineVarDeclarationNode("Color", listOf(VarName("border")))),
                     listOf())))
     }
 
@@ -102,9 +100,9 @@ class JackParserTest {
                 CONSTRUCTOR,
                 "Square",
                 "new",
-                listOf(Parameter("int", "size"), Parameter("Color", "fill")),
+                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
                 SubroutineBodyNode(listOf(
-                        SubroutineVarDeclarationNode("int", listOf("x", "y"))
+                        SubroutineVarDeclarationNode("int", listOf(VarName("x"), VarName("y")))
                 ), listOf())))
     }
 
@@ -144,7 +142,7 @@ class JackParserTest {
 
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as LetStatement
 
-        assertThat(result).isEqualTo(LetStatement("x", Expression("y")))
+        assertThat(result).isEqualTo(LetStatement(VarName("x"), Expression(VarName("y"))))
     }
 
     @Test
@@ -157,7 +155,7 @@ class JackParserTest {
 
         assertThat(result.isFailure).isTrue()
 
-        result.onFailure { assertThat(it.message).isEqualTo("expected a value for right hand side of x but it was empty") }
+        result.onFailure { assertThat(it.message).isEqualTo("expected a value for right hand side of VarName(name=x) but it was empty") }
     }
 
     @Test
@@ -173,9 +171,9 @@ class JackParserTest {
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as IfStatement
 
         assertThat(result).isEqualTo(IfStatement(
-                Expression("x"),
-                listOf(LetStatement("y", Expression("x"))),
-                listOf(LetStatement("y", Expression("z")))
+                Expression(VarName("x")),
+                listOf(LetStatement(VarName("y"), Expression(VarName("x")))),
+                listOf(LetStatement(VarName("y"), Expression(VarName("z"))))
         ))
     }
 
@@ -190,8 +188,8 @@ class JackParserTest {
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as WhileStatement
 
         assertThat(result).isEqualTo(WhileStatement(
-                Expression("x"),
-                listOf(LetStatement("x", Expression("y")))
+                Expression(VarName("x")),
+                listOf(LetStatement(VarName("x"), Expression(VarName("y"))))
         ))
     }
 
@@ -203,7 +201,7 @@ class JackParserTest {
 
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as ReturnStatement
 
-        assertThat(result).isEqualTo(ReturnStatement(Expression("x")))
+        assertThat(result).isEqualTo(ReturnStatement(Expression(VarName("x"))))
     }
 
     @Test
@@ -254,7 +252,10 @@ class JackParserTest {
                 field int x, y;
                 static Color fill;
                 
-                constructor Square new(int x, int y) { return x; }
+                constructor Square new(int x, int y) { 
+                  let z = x;
+                  return x; 
+                 }
                 
                 method int area() { return x; }
                 
@@ -269,7 +270,10 @@ class JackParserTest {
 
         assertThat(result.isSuccess).isTrue()
 
-        result.onSuccess { assertThat(it).isNotNull() }
+        result.onSuccess {
+            assertThat(it).isNotNull()
+            assertThat(it.subroutineDeclarations.get(2).body.statements).isNotEmpty()
+        }
     }
 
     @Ignore("do statement still needs to be implemented")
@@ -282,6 +286,33 @@ class JackParserTest {
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as DoStatement
 
         assertThat(result).isEqualTo(DoStatement(SubroutineCall("x")))
+    }
+
+    @Test
+    fun testExpressions1() {
+        val tokens: Tokens = mutableListOf(StringToken("x"))
+
+        val result = parseExpression(tokens).getOrThrow()!!
+
+        assertThat(result).isEqualTo(Expression(StringConstant("x")))
+    }
+
+    @Test
+    fun testExpressions2() {
+        val tokens: Tokens = mutableListOf(IntToken("10"))
+
+        val result = parseExpression(tokens).getOrThrow()!!
+
+        assertThat(result).isEqualTo(Expression(IntegerConstant(10)))
+    }
+
+    @Test
+    fun testExpressions3() {
+        val tokens: Tokens = mutableListOf(IdentifierToken("game"), SymbolToken("["), IntToken("4"), SymbolToken("]"))
+
+        val result = parseExpression(tokens).getOrThrow()!!
+
+        assertThat(result).isEqualTo(Expression(ArrayAccess(VarName("game"), Expression(IntegerConstant(4)))))
     }
 
     private fun emptyBody(): SubroutineBodyNode = SubroutineBodyNode(listOf(), listOf())

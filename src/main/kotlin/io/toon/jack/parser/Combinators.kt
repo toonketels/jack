@@ -29,7 +29,9 @@ fun <I, R> orMaybe(input: I, vararg parsers: (I) -> Result<R?>): Result<R?> {
     for (parse in parsers) {
         parse(input)
                 .onFailure { return failure(it) }
-                .onSuccess { if (it !=null) return success(it) }
+                .onSuccess {
+                    if (it !=null) return success(it)
+                }
     }
     return success(null)
 }
@@ -39,9 +41,13 @@ fun <I, R> zeroOrMore(tokens: MutableList<I>, parse: (MutableList<I>) -> Result<
 
     val acc = mutableListOf<R>()
     while (true) {
-        if (tokens.isEmpty()) return success(acc)
+        if (tokens.isEmpty()) {
+            return success(acc)
+        }
         parse(tokens)
-                .onFailure { return failure(it) }
+                .onFailure {
+                    return failure(it)
+                }
                 .onSuccess {
                     if (it == null) return success(acc)
                     acc.add(it!!)

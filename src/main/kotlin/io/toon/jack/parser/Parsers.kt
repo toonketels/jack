@@ -9,6 +9,8 @@ import kotlin.Result.Companion.success
 
 typealias Tokens = MutableList<Token>
 
+private fun <E> MutableList<E>.peak(n: Int): Result<List<E>> = try { success(take(n)) } catch (e: Exception) { failure(e) }
+
 private fun <E> MutableList<E>.peak(): E = first()
 
 
@@ -91,10 +93,10 @@ fun parseSubroutineBody(tokens: Tokens): Result<SubroutineBodyNode> {
 
         val ( _a ) = parseSymbol("{")(tokens.eat())
         val ( varDeclarations) = zeroOrMore(tokens, ::parseSubroutineVarDeclaration)
-        val ( statements ) = zeroOrMore(tokens, ::parseStatement)
+        val ( statements ) = parseStatements(tokens)
         val ( _b ) = parseSymbol("}")(tokens.eat())
 
-        SubroutineBodyNode(varDeclarations, listOf())
+        SubroutineBodyNode(varDeclarations, statements)
     }
 
 }
@@ -202,14 +204,32 @@ fun <T> require(result: Result<T?>, name: String = "something"): Result<T> {
 
 fun parseExpression(tokens: Tokens): Result<Expression?> {
 
-    if (parseVarName(tokens.peak()).isFailure) return success(null);
+    val term  = orMaybe(tokens, ::parseIntegerConstant, ::parseStringConstant, ::parseArrayAccess, ::parseVarName2)
 
-    return requireAll {
+    term.onFailure { return failure(it) }
+            .onSuccess { return if (it != null) success(Expression(it)) else success(null) }
 
-        val ( varName ) = parseVarName(tokens.eat())
+    // @TODO unreachable code?
+    return success(null)
+//    if (term.isFailure) failure<>()
+//    if (term.isSuccess) success(Expression(term.getOrNull()!!))
+//
+//    val intConst = attempt(tokens, ::parseIntegerConstant)
+//    if (intConst != null) return success(Expression(intConst))
+//
+//    val ( stringConst ) = parseStringConstant(tokens)
+//    if (stringConst != null) return success(Expression(stringConst))
+//
+//    val ( arAccess ) = parseArrayAccess(tokens)
+//    if (arAccess != null) return success(Expression(arAccess))
+//
+//    val varName = attempt(tokens, ::parseVarName)
+//    return success(Expression(varName!!))
 
-        Expression(varName)
-    }
+}
+
+fun<R> attempt(tokens: Tokens, parse: (Token) -> Result<R>): R? {
+    return if (parse(tokens.peak()).isSuccess) parse(tokens.eat()).getOrNull() else null
 }
 
 fun parseSubroutineVarDeclaration(tokens: Tokens): Result<SubroutineVarDeclarationNode?> {
@@ -295,9 +315,13 @@ fun parseClassName(token: Token): Result<String> = if (token is IdentifierToken)
     success(token.value) else
     failExceptionally("expected a class name ${token.value} to be an identifier")
 
-fun parseVarName(token: Token): Result<String> = if (token is IdentifierToken)
-    success(token.value) else
+fun parseVarName(token: Token): Result<VarName> = if (token is IdentifierToken)
+    success(VarName(token.value)) else
     failExceptionally("var name ${token.value} is not an identifier")
+
+fun parseVarName2(tokens: Tokens): Result<VarName?> = if (tokens.peak() is IdentifierToken)
+    success(VarName(tokens.eat().value)) else
+    success(null)
 
 fun parseSubroutineName(token: Token): Result<String> = if (token is IdentifierToken)
     success(token.value) else
@@ -321,4 +345,38 @@ fun parseStaticModifier(token: Token): Result<ClassVarStaticModifier> {
         return failure(Exception("{$token.value} is not the keyword static or field"))
 
     return success(if (token.value == "static") STATIC else FIELD)
+}
+
+fun parseIntegerConstant(tokens: Tokens): Result<IntegerConstant?> = if (tokens.peak() is IntToken)
+    success(IntegerConstant(tokens.eat().value.toInt(10)))
+    else success(null)
+
+fun parseStringConstant(tokens: Tokens): Result<StringConstant?> = if (tokens.peak() is StringToken)
+    success(StringConstant(tokens.eat().value))
+    else success(null)
+
+
+
+fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> {
+
+     tokens.peak(2)
+             .onFailure { return success(null) }
+             .onSuccess {
+                 val (varName, symbol) = it
+
+                 if (parseVarName(varName).isFailure || parseSymbol("[")(symbol).isFailure) return success(null)
+
+                 return requireAll {
+
+                     val ( varName ) = parseVarName(tokens.eat())
+                     val ( _a ) = parseSymbol("[")(tokens.eat())
+                     val ( expression ) = require(parseExpression(tokens), "expression")
+                     val ( _b ) = parseSymbol("]")(tokens.eat())
+
+                     ArrayAccess(varName, expression)
+                 }
+             }
+
+    // @TODO unreachable code
+    return success(null)
 }
