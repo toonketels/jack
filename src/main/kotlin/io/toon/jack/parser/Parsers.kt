@@ -110,8 +110,23 @@ fun parseStatement(tokens: Tokens): Result<Statement?> {
             ::parseLetStatement,
             ::parseIfStatement,
             ::parseWhileStatement,
+            ::parseDoStatement,
             ::parseReturnStatement)
     return orMaybe
+}
+
+fun parseDoStatement(tokens: Tokens): Result<DoStatement?> {
+
+    if (parseKeyword("do")(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+
+        val ( _a ) = parseKeyword("do")(tokens.eat())
+        val ( subroutine ) = require(parseSubroutineCall(tokens))
+        val ( _b ) = parseSymbol(";")(tokens.eat())
+
+        DoStatement(subroutine)
+    }
 }
 
 fun parseReturnStatement(tokens: Tokens): Result<ReturnStatement?> {
@@ -182,28 +197,35 @@ fun parseLetStatement(tokens: Tokens): Result<LetStatement?> {
     return requireAll {
 
         val ( _a ) = parseKeyword("let")(tokens.eat())
-        val ( varName ) = parseVarName(tokens.eat())
-        val ( _b ) = parseSymbol("=")(tokens.eat())
-        val ( rhs ) = require(parseExpression(tokens), "right hand side of ${varName}")
-        val ( _c ) = parseSymbol(";")(tokens.eat())
+        val ( arrayAccess ) = parseArrayAccess(tokens)
+        // @TOOD refactor
+        if (arrayAccess == null) {
+            val ( varName ) = parseVarName(tokens.eat())
+            val ( _b ) = parseSymbol("=")(tokens.eat())
+            val ( rhs ) = require(parseExpression(tokens), "right hand side of ${varName}")
+            val ( _c ) = parseSymbol(";")(tokens.eat())
+
+            LetStatement(varName, rhs)
+        } else {
+            val (_b) = parseSymbol("=")(tokens.eat())
+            val (rhs) = require(parseExpression(tokens), "right hand side of ${arrayAccess}")
+            val (_c) = parseSymbol(";")(tokens.eat())
 
 
-        LetStatement(varName, rhs)
+            LetStatement(arrayAccess, rhs)
+        }
     }
 }
 
-// @TODO require and maybe? and return result immedately
-fun <T> require(result: Result<T?>, name: String = "something"): Result<T> {
 
-    if (result.isSuccess && result.getOrNull() == null) {
-        return failExceptionally("expected a value for ${name} but it was empty")
-    }
-
-    return result as Result<T>
-}
+fun <T> require(result: Result<T?>, name: String = "something"): Result<T> =
+        if (result.isSuccess && result.getOrNull() == null)
+        failExceptionally("expected a value for ${name} but it was empty")
+        else result as Result<T>
 
 fun parseTerm(tokens: Tokens): Result<TermNode?> {
     return orMaybe(tokens,
+            ::parseSubroutineCall,
             ::parseIntegerConstant,
             ::parseStringConstant,
             ::parseKeywordConstant,
@@ -215,17 +237,108 @@ fun parseTerm(tokens: Tokens): Result<TermNode?> {
 
 fun parseExpression(tokens: Tokens): Result<Expression?> {
 
-    val term = parseTerm(tokens);
+    parseTerm(tokens)
+            .onFailure { return failure(it) }
+            .onSuccess { term ->
+                if (term == null) return success(null)
 
-    term.onFailure { return failure(it) }
-            .onSuccess { return if (it != null) success(Expression(it)) else success(null) }
+                parseOpTerm(tokens)
+                        .onFailure { return failure(it) }
+                        .onSuccess { opTerm -> return success(Expression(term, opTerm)) }
+            }
 
-    // @TODO unreachable code?
+    return success(null)
+}
+
+fun parseSubroutineCall(tokens: Tokens): Result<SubroutineCall?> = orMaybe(tokens,
+        ::parseSimpleSubroutineCall,
+        ::parseComplexSubroutineCall)
+
+fun parseSimpleSubroutineCall(tokens: Tokens): Result<SimpleSubroutineCall?> {
+
+    tokens.peak(2)
+            .onFailure {
+                return success(null) }
+            .onSuccess {
+                val (first, second) = it
+
+                if (parseSubroutineName(first).isFailure || parseSymbol("(")(second).isFailure) return success(null)
+
+                return requireAll {
+
+                    val ( name ) = parseSubroutineName(tokens.eat())
+                    val ( _a ) = parseSymbol("(")(tokens.eat())
+                    val ( expressions ) = zeroOrMore(tokens, ::parseExpression, tryThanEat(parseSymbol(",")))
+
+                    val ( _b ) = parseSymbol(")")(tokens.eat())
+
+                    SimpleSubroutineCall(name, expressions)
+                }
+    }
+
+    return success(null)
+}
+
+fun parseComplexSubroutineCall(tokens: Tokens): Result<ComplexSubroutineCall?> {
+
+    tokens.peak(2)
+            .onFailure {
+                return success(null) }
+            .onSuccess {
+                val (first, second) = it
+
+                if (parseIdentifier()(first).isFailure || parseSymbol(".")(second).isFailure) return success(null)
+
+                return requireAll {
+
+                    val ( identifier ) = parseIdentifier()(tokens.eat())
+                    val ( _a ) = parseSymbol(".")(tokens.eat())
+                    val ( name ) = parseSubroutineName(tokens.eat())
+                    val ( _b ) = parseSymbol("(")(tokens.eat())
+                    val ( expressions ) = zeroOrMore(tokens, ::parseExpression, tryThanEat(parseSymbol(",")))
+
+                    val ( _c ) = parseSymbol(")")(tokens.eat())
+
+                    ComplexSubroutineCall(identifier, name, expressions)
+                }
+            }
+
     return success(null)
 }
 
 fun<R> attempt(tokens: Tokens, parse: (Token) -> Result<R>): R? {
     return if (parse(tokens.peak()).isSuccess) parse(tokens.eat()).getOrNull() else null
+}
+
+fun parseOpTerm(tokens: Tokens): Result<OpTermNode?> {
+
+    if (parseOp(tokens.peak()).isFailure) return success(null)
+
+    return requireAll {
+        val ( operator ) = parseOp(tokens.eat())
+
+        val ( term ) = require(parseTerm(tokens))
+
+
+        OpTermNode(operator, term)
+    }
+}
+
+fun parseOp(token: Token): Result<Operator> {
+    if (token !is SymbolToken) return failExceptionally("expected an operator but got ${token.value} as ${token.type} instead")
+
+    return when (token.value) {
+        "+" -> success(Operator.PLUS)
+        "-" -> success(Operator.MINUS)
+        "*" -> success(Operator.MULTIPLY)
+        "/" -> success(Operator.DIVIDED)
+        "&lt;" -> success(Operator.LESS_THAN) // <
+        "&gt;" -> success(Operator.GREATER_THAN) // >
+        "&amp;" -> success(Operator.AND) // &
+        "|" -> success(Operator.OR)
+        "=" -> success(Operator.EQUALS)
+        else -> failExceptionally("not a valid operator ${token.value}")
+    }
 }
 
 fun parseSubroutineVarDeclaration(tokens: Tokens): Result<SubroutineVarDeclarationNode?> {
@@ -353,7 +466,7 @@ fun parseStringConstant(tokens: Tokens): Result<StringConstant?> = if (tokens.pe
 
 fun parseKeywordConstant(tokens: Tokens): Result<KeywordConstant?> = tokens.peak().let {
     if (it is KeywordToken && it.value in listOf("true", "false", "this", "null"))
-        success(KeywordConstant(it.value))
+        success(KeywordConstant(tokens.eat().value))
         else success(null)
 }
 

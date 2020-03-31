@@ -3,6 +3,7 @@ package io.toon.jack.parser
 import assertk.assertThat
 import assertk.assertions.*
 import io.toon.jack.parser.ClassVarStaticModifier.FIELD
+import io.toon.jack.parser.Operator.PLUS
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
 import io.toon.jack.tokenizer.*
 import org.junit.Ignore
@@ -145,11 +146,10 @@ class JackParserTest {
         assertThat(result).isEqualTo(LetStatement(VarName("x"), Expression(VarName("y"))))
     }
 
-    @Ignore("fix issue")
     @Test
     fun testLetStatementMissingExpression() {
         val source = """
-            let x = ;
+            let x = ;;
         """.trimIndent()
 
         val result = parseStatement(JackTokenizer(source).toMutableList())
@@ -205,11 +205,11 @@ class JackParserTest {
         assertThat(result).isEqualTo(ReturnStatement(Expression(VarName("x"))))
     }
 
-    @Ignore("fix issue")
     @Test
     fun testReturnStatementWithoutExpression() {
         val source = """
             return ;
+            ;
         """.trimIndent()
 
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as ReturnStatement
@@ -278,7 +278,6 @@ class JackParserTest {
         }
     }
 
-    @Ignore("do statement still needs to be implemented")
     @Test
     fun testDoStatement() {
         val source = """
@@ -287,30 +286,16 @@ class JackParserTest {
 
         val result = parseStatement(JackTokenizer(source).toMutableList()).getOrThrow()!! as DoStatement
 
-        assertThat(result).isEqualTo(DoStatement(SubroutineCall("x")))
-    }
-
-    @Test
-    fun testExpressions1() {
-        val tokens: Tokens = mutableListOf(StringToken("x"))
-
-        val result = parseExpression(tokens).getOrThrow()!!
-
-        assertThat(result).isEqualTo(Expression(StringConstant("x")))
-    }
-
-    @Test
-    fun testExpressions2() {
-        val tokens: Tokens = mutableListOf(IntToken("10"))
-
-        val result = parseExpression(tokens).getOrThrow()!!
-
-        assertThat(result).isEqualTo(Expression(IntegerConstant(10)))
+        assertThat(result).isEqualTo(DoStatement(ComplexSubroutineCall(
+                "x",
+                "pay",
+                listOf(Expression(VarName("y")))
+        )))
     }
 
     @Test
     fun testExpressions3() {
-        val tokens: Tokens = mutableListOf(IdentifierToken("game"), SymbolToken("["), IntToken("4"), SymbolToken("]"))
+        val tokens: Tokens = mutableListOf(IdentifierToken("game"), SymbolToken("["), IntToken("4"), SymbolToken("]"), SymbolToken(";"))
 
         val result = parseExpression(tokens).getOrThrow()!!
 
@@ -319,7 +304,7 @@ class JackParserTest {
 
     @Test
     fun testExpressions4() {
-        val tokens: Tokens = mutableListOf(KeywordToken("true"))
+        val tokens: Tokens = mutableListOf(KeywordToken("true"), SymbolToken(";"))
 
         val result = parseExpression(tokens).getOrThrow()!!
 
@@ -328,7 +313,7 @@ class JackParserTest {
 
     @Test
     fun testExpressions5() {
-        val tokens: Tokens = mutableListOf(SymbolToken("("), IntToken("20"), SymbolToken(")"))
+        val tokens: Tokens = mutableListOf(SymbolToken("("), IntToken("20"), SymbolToken(")"), SymbolToken(";"))
 
         val result = parseExpression(tokens).getOrThrow()!!
 
@@ -337,12 +322,70 @@ class JackParserTest {
 
     @Test
     fun testExpressions6() {
-        val tokens: Tokens = mutableListOf(SymbolToken("-"), IntToken("20"))
+        val tokens: Tokens = mutableListOf(SymbolToken("-"), IntToken("20"), SymbolToken(";"))
 
         val result = parseExpression(tokens).getOrThrow()!!
 
         assertThat(result).isEqualTo(Expression(UnaryOp("-", IntegerConstant(20))))
     }
 
+    @Test
+    fun testExpression7() {
+        val tokens: Tokens = mutableListOf(IntToken("3"), SymbolToken("+"), IntToken("20"), SymbolToken(";"))
+
+        val result = parseExpression(tokens).getOrThrow()!!
+
+        assertThat(result).isEqualTo(Expression(IntegerConstant(3), OpTermNode(PLUS, IntegerConstant(20))))
+    }
+
+    @Test
+    fun testExpression8() {
+        val tokens: Tokens = mutableListOf(IntToken("3"), SymbolToken("+"), SymbolToken("+"), IntToken("20"))
+
+        val result = parseExpression(tokens)
+
+        assertThat(result.isFailure).isTrue()
+        result.onFailure { assertThat(it.message).isEqualTo("expected a value for something but it was empty") }
+    }
+
+    @Test
+    fun subroutine1() {
+        val tokens: Tokens = mutableListOf(IdentifierToken("greeting"), SymbolToken("("), IntToken("2"), SymbolToken(","), IntToken("3"), SymbolToken(")"))
+
+        val result = parseSubroutineCall(tokens)
+
+        assertThat(result.isSuccess).isTrue()
+
+        result.onSuccess {
+            assertThat(it)
+                    .isEqualTo(SimpleSubroutineCall("greeting", listOf(Expression(IntegerConstant(2)), Expression(IntegerConstant(3)))))
+        }
+    }
+
+    @Test
+    fun subroutine2() {
+        val tokens: Tokens = mutableListOf(IdentifierToken("Greeter"), SymbolToken("."), IdentifierToken("greeting"), SymbolToken("("), IntToken("2"), SymbolToken(","), IntToken("3"), SymbolToken(")"))
+
+        val result = parseSubroutineCall(tokens)
+
+        assertThat(result.isSuccess).isTrue()
+
+        result.onSuccess {
+            assertThat(it)
+                    .isEqualTo(ComplexSubroutineCall("Greeter","greeting", listOf(Expression(IntegerConstant(2)), Expression(IntegerConstant(3)))))
+        }
+    }
+
+    @Test
+    fun parseLetStatementTest() {
+
+        val source = "if (false) {}"
+
+        val result = parseIfStatement(JackTokenizer(source).toMutableList())
+
+        val node = result.getOrThrow()!!
+    }
+
     private fun emptyBody(): SubroutineBodyNode = SubroutineBodyNode(listOf(), listOf())
+
 }

@@ -125,16 +125,21 @@ data class SubroutineVarDeclarationNode(
 
 interface Statement: Node
 
+// @TODO better handling arrayAccess
 data class LetStatement(
-        val varName: VarName,
-//        @TODO array accessor
+        val varName: VarName?,
+        val arrayAccess: ArrayAccess?,
         val rightExpression: Expression
- ): Statement {
+): Statement {
+
+    constructor(varName: VarName, rightExpression: Expression): this(varName, null, rightExpression)
+    constructor(arrayAccess: ArrayAccess, rightExpression: Expression): this(null, arrayAccess, rightExpression)
 
     override fun buildXML(): XML {
         return xml("letStatement") {
             keyword { "let" }
-            child { varName }
+            // @TODO arrayAccess print it
+            child { varName!! }
             symbol { "=" }
             child { rightExpression }
             symbol { ";" }
@@ -197,7 +202,8 @@ data class WhileStatement(
 
 data class Expression(
         // @TODO better expressions
-        val term: TermNode
+        val term: TermNode,
+        val opTerm: OpTermNode? = null
 ): Node {
 
     override fun buildXML(): XML {
@@ -207,6 +213,24 @@ data class Expression(
             }
         }
     }
+}
+
+data class OpTermNode(
+    val operator: Operator,
+    val term: TermNode
+): Node
+
+public enum class Operator(val value: String) {
+    PLUS("+"),
+    MINUS("-"),
+    MULTIPLY("*"),
+    DIVIDED("/"),
+    AND("$"),
+    OR("|"),
+    LESS_THAN("<"),
+    GREATER_THAN(">"),
+    EQUALS("=")
+
 }
 
 interface TermNode: Node
@@ -240,5 +264,7 @@ data class TermExpression(val expression: Expression): TermNode
 
 data class UnaryOp(val op: String, val term: TermNode): TermNode
 
-// @TODO is way more complex than this
-data class SubroutineCall(val varName: String): TermNode
+interface SubroutineCall: TermNode
+
+data class SimpleSubroutineCall(val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall
+data class ComplexSubroutineCall(val identifier: String, val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall
