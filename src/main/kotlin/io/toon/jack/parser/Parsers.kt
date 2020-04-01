@@ -31,14 +31,14 @@ fun maybeParseClass(tokens: Tokens): Result<ClassNode?> {
     return requireAll {
 
         val ( _a) = parseClassKeyword(tokens.eat())
-        val ( name) = parseClassName(tokens.eat())
+        val ( className) = parseClassName(tokens.eat())
         val ( _b ) = parseSymbol("{")(tokens.eat())
         val ( varDeclarations ) = zeroOrMore(tokens, ::parseClassVarDeclaration)
         val ( subroutineDeclarations ) = zeroOrMore(tokens, ::parseSubroutineDeclaration)
         val ( _c) = parseSymbol("}")(tokens.eat())
 
         ClassNode(
-                name = name,
+                name = className.name,
                 classVarDeclarations = varDeclarations,
                 subroutineDeclarations = subroutineDeclarations
         )
@@ -370,6 +370,13 @@ fun parseParameter(tokens: Tokens): Result<Parameter?> {
     }
 }
 
+fun <T> mappedKeywordParser(error: String? = null, validator: (KeywordToken) -> Boolean, mapper: (String) -> T): (Token) -> Result<T> {
+    return {token -> if (token is KeywordToken && validator(token))
+        success(token.value).map(mapper)
+    else failExceptionally(error ?: "expected specific keyword but got ${token.value} as ${token.type}")
+    }
+}
+
 fun keywordParser(error: String? = null, validator: (KeywordToken) -> Boolean): (Token) -> Result<String> {
     return {token -> if (token is KeywordToken && validator(token))
         success(token.value)
@@ -420,8 +427,8 @@ fun parseSymbol(symbol: String): (Token) -> Result<Unit> = { token ->
     if (token is SymbolToken && token.value == symbol) success(Unit) else failExceptionally("expected symbol $symbol but got ${token.value} instead")
 }
 
-fun parseClassName(token: Token): Result<String> = if (token is IdentifierToken)
-    success(token.value) else
+fun parseClassName(token: Token): Result<TypeName> = if (token is IdentifierToken)
+    success(TypeName(token.value)) else
     failExceptionally("expected a class name ${token.value} to be an identifier")
 
 fun parseVarName(token: Token): Result<VarName> = if (token is IdentifierToken)
@@ -436,15 +443,15 @@ fun parseSubroutineName(token: Token): Result<String> = if (token is IdentifierT
     success(token.value) else
     failExceptionally("subroutine name ${token.value} is not an identifier" )
 
-fun parsePrimitiveType(token: Token): Result<String> = if (token is KeywordToken && token.value in listOf("int", "char", "boolean"))
-    success(token.value) else
+fun parsePrimitiveType(token: Token): Result<TypeName> = if (token is KeywordToken && token.value in listOf("int", "char", "boolean"))
+    success(TypeName(token.value)) else
     failExceptionally("keyword passed in none of int char or boolean")
 
-fun parseSubroutineReturnType(token: Token): Result<String> {
-    return or(token, ::parseType, keywordParser { it.value == "void" })
+fun parseSubroutineReturnType(token: Token): Result<TypeName> {
+    return or(token, ::parseType, mappedKeywordParser(null, { it.value == "void" }, { TypeName(it) }) )
 }
 
-fun parseType(token: Token): Result<String> {
+fun parseType(token: Token): Result<TypeName> {
     return or(token, ::parsePrimitiveType, ::parseClassName)
 }
 

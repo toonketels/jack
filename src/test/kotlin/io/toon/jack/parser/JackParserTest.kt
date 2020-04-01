@@ -31,7 +31,7 @@ class JackParserTest {
 
         val result = parseClassVarDeclaration(JackTokenizer(source).toMutableList()).getOrThrow()!!
 
-        assertThat(result).isEqualTo(ClassVarDeclarationNode(FIELD, "int",  listOf(VarName("x"), VarName("y"))))
+        assertThat(result).isEqualTo(ClassVarDeclarationNode(FIELD, TypeName("int"),  listOf(VarName("x"), VarName("y"))))
     }
 
     @Test
@@ -42,9 +42,9 @@ class JackParserTest {
 
         assertThat(result).isEqualTo(SubroutineDeclarationNode(
                 CONSTRUCTOR,
-                "Square",
+                TypeName("Square"),
                 "new",
-                listOf(Parameter("int", VarName("size"))),
+                listOf(Parameter(TypeName("int"), VarName("size"))),
                 emptyBody()))
     }
 
@@ -56,9 +56,9 @@ class JackParserTest {
 
         assertThat(result).isEqualTo(SubroutineDeclarationNode(
                 CONSTRUCTOR,
-                "Square",
+                TypeName("Square"),
                 "new",
-                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
+                listOf(Parameter(TypeName("int"), VarName("size")), Parameter(TypeName("Color"), VarName("fill"))),
                 emptyBody()))
     }
 
@@ -75,13 +75,13 @@ class JackParserTest {
 
         assertThat(result).isEqualTo(SubroutineDeclarationNode(
                 CONSTRUCTOR,
-                "Square",
+                TypeName("Square"),
                 "new",
-                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
+                listOf(Parameter(TypeName("int"), VarName("size")), Parameter(TypeName("Color"), VarName("fill"))),
                 SubroutineBodyNode(
                     listOf(
-                        SubroutineVarDeclarationNode("int", listOf(VarName("x"), VarName("y"))),
-                        SubroutineVarDeclarationNode("Color", listOf(VarName("border")))),
+                        SubroutineVarDeclarationNode(TypeName("int"), listOf(VarName("x"), VarName("y"))),
+                        SubroutineVarDeclarationNode(TypeName("Color"), listOf(VarName("border")))),
                     listOf())))
     }
 
@@ -99,11 +99,11 @@ class JackParserTest {
 
         assertThat(result).isEqualTo(SubroutineDeclarationNode(
                 CONSTRUCTOR,
-                "Square",
+                TypeName("Square"),
                 "new",
-                listOf(Parameter("int", VarName("size")), Parameter("Color", VarName("fill"))),
+                listOf(Parameter(TypeName("int"), VarName("size")), Parameter(TypeName("Color"), VarName("fill"))),
                 SubroutineBodyNode(listOf(
-                        SubroutineVarDeclarationNode("int", listOf(VarName("x"), VarName("y")))
+                        SubroutineVarDeclarationNode(TypeName("int"), listOf(VarName("x"), VarName("y")))
                 ), listOf())))
     }
 

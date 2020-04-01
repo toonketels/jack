@@ -17,36 +17,43 @@ class JackParserProgramTest {
 
         val source = """
            class Main {
-               static boolean test;    // Added for testing -- there is no static keyword
-                                       // in the Square files.
                function void main() {
-                 var SquareGame game;
-                 let game = SquareGame.new();
-                 do game.run();
-                 do game.dispose();
-                 return;
-               }
-
-               function void test() {  // Added to test Jack syntax that is not use in
-                   var int i, j;       // the Square files.
-                   var String s;
                    var Array a;
-                   if (false) {
-                       let s = "string constant";
-                       let s = null;
-                       let a[1] = a[2];
-                   }
-                   else {              // There is no else keyword in the Square files.
-                       let i = i * (-j);
-                       let j = j / (-2);   // note: unary negate constant 2
-                       let i = i | j;
-                   }
-                   return;
+                   var int length;
+                   var int i, sum;
+           	
+           	let length = Keyboard.readInt("HOW MANY NUMBERS? ");
+           	let a = Array.new(length);
+           	let i = 0;
+           	
+           	while (i < length) {
+           	    let a[i] = Keyboard.readInt("ENTER THE NEXT NUMBER: ");
+           	    let i = i + 1;
+           	}
+           	
+           	let i = 0;
+           	let sum = 0;
+           	
+           	while (i < length) {
+           	    let sum = sum + a[i];
+           	    let i = i + 1;
+           	}
+           	
+           	do Output.printString("THE AVERAGE IS: ");
+           	do Output.printInt(sum / length);
+           	do Output.println();
+           	
+           	return;
                }
            }
         """.trimIndent()
 
         val result = parse(source).getOrThrow()
+
+        val expected = this.javaClass.getResource(
+                "/ArrayTest/Main.xml").readText()
+
+        assertEquals(expected, result.toXML())
     }
 
     @Test fun parseArrayTest() {
@@ -57,7 +64,7 @@ class JackParserProgramTest {
 
         val result = parse(source).getOrThrow()
 
-        assertNotNull(result)
+        assertEquals(expected, result.toXML())
     }
 
     @Test fun parseSimpleArrayTest() {

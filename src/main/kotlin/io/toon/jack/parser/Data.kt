@@ -25,7 +25,7 @@ data class ClassVarDeclarationNode(
     override fun buildXML(): XML = xml("classVarDec") {
         keyword { staticModifier.value }
         // @TODO maybe not enough info retained to determine its a keyword
-        keyword { typeName }
+        child { typeName }
 
         for ((index, name) in varNames.withIndex()) {
             child { name }
@@ -42,7 +42,10 @@ enum class ClassVarStaticModifier(val value: String) {
     FIELD("field")
 }
 
-typealias TypeName = String
+data class TypeName(val name: String): Node {
+    val tagName = if (name in listOf("void", "int", "char", "boolean")) "keyword" else "identifier"
+    override fun buildXML(): XML = xml(tagName) { just { name } }
+}
 
 data class SubroutineDeclarationNode(
         val declarationType: SubroutineDeclarationType,
@@ -53,7 +56,7 @@ data class SubroutineDeclarationNode(
 ): Node {
     override fun buildXML(): XML = xml("subroutineDec") {
         keyword { declarationType.value }
-        keyword { returnType }
+        child { returnType }
         identifier { subroutineName }
         symbol { "(" }
         xml("parameterList") {
@@ -62,7 +65,7 @@ data class SubroutineDeclarationNode(
                 // @TODO also add this one as a children { parameter }
                 val (type, name) = parameter
                 // @TODO prob not always a keyword
-                keyword { type }
+                child { type }
                 child { name }
 
                 if (index+1 != parameterList.size) {
@@ -110,8 +113,7 @@ data class SubroutineVarDeclarationNode(
 ): Node {
     override fun buildXML(): XML = xml("varDec") {
         keyword { "var" }
-        // @TODO could be an identifier too
-        keyword { typeName }
+        child { typeName }
         for ((index, varName) in varNames.withIndex()) {
             child { varName }
             if (index+1 != varNames.size) {
@@ -139,7 +141,9 @@ data class LetStatement(
         return xml("letStatement") {
             keyword { "let" }
             // @TODO arrayAccess print it
-            child { varName!! }
+            if (varName != null) {
+                child { varName }
+            }
             symbol { "=" }
             child { rightExpression }
             symbol { ";" }
@@ -208,9 +212,9 @@ data class Expression(
 
     override fun buildXML(): XML {
         return xml("expression") {
-            xml("term") {
-                child { term }
-            }
+            xml("term") { child { term } }
+
+            if (opTerm != null) { child { opTerm } }
         }
     }
 }
@@ -218,7 +222,12 @@ data class Expression(
 data class OpTermNode(
     val operator: Operator,
     val term: TermNode
-): Node
+): Node {
+    override fun buildXML(): XML = xmlList {
+        symbol { operator.value }
+        xml("term") { child { term } }
+    }
+}
 
 public enum class Operator(val value: String) {
     PLUS("+"),
@@ -243,7 +252,7 @@ data class IntegerConstant(val value: Int): TermNode {
 
 data class StringConstant(val value: String): TermNode {
     override fun buildXML(): XML = xml("stringConstant") {
-        just { value }
+        just { value  }
     }
 }
 
@@ -267,4 +276,16 @@ data class UnaryOp(val op: String, val term: TermNode): TermNode
 interface SubroutineCall: TermNode
 
 data class SimpleSubroutineCall(val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall
-data class ComplexSubroutineCall(val identifier: String, val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall
+
+data class ComplexSubroutineCall(val identifier_: String, val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall {
+    override fun buildXML(): XML = xmlList {
+        identifier { identifier_ }
+        symbol { "." }
+        identifier { subroutineName }
+        symbol { "(" }
+        xml("expressionList") {
+            for (expression in expressions) child { expression }
+        }
+        symbol { ")" }
+    }
+}
