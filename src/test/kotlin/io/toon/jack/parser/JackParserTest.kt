@@ -21,7 +21,7 @@ class JackParserTest {
 
         assertThat(result.isSuccess).isTrue()
 
-        val node = result.getOrThrow()!! as ClassNode
+        val node = result.getOrThrow()
         assertThat(node.name).isEqualTo("Main")
     }
 
@@ -326,7 +326,7 @@ class JackParserTest {
 
         val result = parseExpression(tokens).getOrThrow()!!
 
-        assertThat(result).isEqualTo(Expression(UnaryOp("-", IntegerConstant(20))))
+        assertThat(result).isEqualTo(Expression(UnaryOp(Operator.MINUS, IntegerConstant(20))))
     }
 
     @Test
@@ -374,16 +374,6 @@ class JackParserTest {
             assertThat(it)
                     .isEqualTo(ComplexSubroutineCall("Greeter","greeting", listOf(Expression(IntegerConstant(2)), Expression(IntegerConstant(3)))))
         }
-    }
-
-    @Test
-    fun parseLetStatementTest() {
-
-        val source = "if (false) {}"
-
-        val result = parseIfStatement(JackTokenizer(source).toMutableList())
-
-        val node = result.getOrThrow()!!
     }
 
     private fun emptyBody(): SubroutineBodyNode = SubroutineBodyNode(listOf(), listOf())

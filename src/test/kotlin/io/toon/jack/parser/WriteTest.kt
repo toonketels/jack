@@ -29,7 +29,7 @@ class WriterTest {
             }
         """.trimIndent()
 
-        val result = parseClass(JackTokenizer(source).toMutableList()).getOrThrow()!!
+        val result = parseClass(JackTokenizer(source).toMutableList()).getOrThrow()
 
         print(result.buildXML().toXML())
     }
@@ -83,7 +83,6 @@ class WriterTest {
 
     @Test
     fun test2() {
-        val x = "hello"
 
         val root = xml("letStatement") {
             keyword { "let" }

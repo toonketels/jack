@@ -1,5 +1,6 @@
 package io.toon.jack.parser
 
+
 interface Node: XMLBuilder {}
 
 data class ClassNode(
@@ -23,27 +24,22 @@ data class ClassVarDeclarationNode(
         val varNames: List<VarName>): Node {
 
     override fun buildXML(): XML = xml("classVarDec") {
-        keyword { staticModifier.value }
-        // @TODO maybe not enough info retained to determine its a keyword
+        child { staticModifier }
         child { typeName }
-
-        for ((index, name) in varNames.withIndex()) {
-            child { name }
-            if (index+1 != varNames.size) {
-                symbol { "," }
-            }
-        }
+        child { list(varNames) }
         symbol { ";" }
     }
 }
 
-enum class ClassVarStaticModifier(val value: String) {
+enum class ClassVarStaticModifier(private val value: String): Node {
     STATIC("static"),
-    FIELD("field")
+    FIELD("field");
+
+    override fun buildXML(): XML = xml("keyword") { just { value } }
 }
 
 data class TypeName(val name: String): Node {
-    val tagName = if (name in listOf("void", "int", "char", "boolean")) "keyword" else "identifier"
+    private val tagName = if (name in listOf("void", "int", "char", "boolean")) "keyword" else "identifier"
     override fun buildXML(): XML = xml(tagName) { just { name } }
 }
 
@@ -55,23 +51,12 @@ data class SubroutineDeclarationNode(
         val body: SubroutineBodyNode
 ): Node {
     override fun buildXML(): XML = xml("subroutineDec") {
-        keyword { declarationType.value }
+        child { declarationType }
         child { returnType }
         identifier { subroutineName }
         symbol { "(" }
         xml("parameterList") {
-            for ((index, parameter) in parameterList.withIndex()) {
-
-                // @TODO also add this one as a children { parameter }
-                val (type, name) = parameter
-                // @TODO prob not always a keyword
-                child { type }
-                child { name }
-
-                if (index+1 != parameterList.size) {
-                    symbol { "," }
-                }
-            }
+            if (parameterList.isNotEmpty()) child { list(parameterList) }
         }
         symbol { ")" }
         child { body }
@@ -79,16 +64,23 @@ data class SubroutineDeclarationNode(
     }
 }
 
-enum class SubroutineDeclarationType(val value: String) {
+enum class SubroutineDeclarationType(val value: String): Node {
     CONSTRUCTOR("constructor"),
     FUNCTION("function"),
-    METHOD("method")
+    METHOD("method");
+
+    override fun buildXML(): XML = xml("keyword") { just { value } }
 }
 
 data class Parameter(
         val type: TypeName,
         val name: VarName
-): Node
+): Node {
+    override fun buildXML(): XML = xmlList {
+        child { type }
+        child { name }
+    }
+}
 
 data class SubroutineBodyNode(
         val varDeclarations: List<SubroutineVarDeclarationNode>,
@@ -114,12 +106,7 @@ data class SubroutineVarDeclarationNode(
     override fun buildXML(): XML = xml("varDec") {
         keyword { "var" }
         child { typeName }
-        for ((index, varName) in varNames.withIndex()) {
-            child { varName }
-            if (index+1 != varNames.size) {
-                symbol { "," }
-            }
-        }
+        child { list(varNames) }
         symbol { ";" }
 
     }
@@ -127,8 +114,7 @@ data class SubroutineVarDeclarationNode(
 
 interface Statement: Node
 
-// @TODO better handling arrayAccess
-data class LetStatement(
+data class LetStatement private constructor(
         val varName: VarName?,
         val arrayAccess: ArrayAccess?,
         val rightExpression: Expression
@@ -140,9 +126,10 @@ data class LetStatement(
     override fun buildXML(): XML {
         return xml("letStatement") {
             keyword { "let" }
-            // @TODO arrayAccess print it
             if (varName != null) {
                 child { varName }
+            } else {
+                child { arrayAccess!! }
             }
             symbol { "=" }
             child { rightExpression }
@@ -163,13 +150,17 @@ data class IfStatement(
         child { predicate }
         symbol { ")" }
         symbol { "{" }
-        statements.forEach { child { it } }
+        xml("statements") {
+            statements.forEach { child { it } }
+        }
         symbol { "}" }
 
         if (altStatements.isNotEmpty()) {
             keyword { "else" }
             symbol { "{" }
-            altStatements.forEach { child { it } }
+            xml("statements") {
+                altStatements.forEach { child { it } }
+            }
             symbol { "}" }
         }
     }
@@ -177,7 +168,13 @@ data class IfStatement(
 
 data class DoStatement(
         val subroutineCall: SubroutineCall
-): Statement
+): Statement {
+    override fun buildXML(): XML = xml("doStatement") {
+        keyword { "do" }
+        child { subroutineCall }
+        symbol { ";" }
+    }
+}
 
 data class ReturnStatement(
         val expression: Expression? = null
@@ -199,13 +196,14 @@ data class WhileStatement(
         child { predicate }
         symbol { ")" }
         symbol { "{" }
-        statements.forEach { child { it } }
+        xml("statements") {
+            statements.forEach { child { it } }
+        }
         symbol { "}" }
     }
 }
 
 data class Expression(
-        // @TODO better expressions
         val term: TermNode,
         val opTerm: OpTermNode? = null
 ): Node {
@@ -224,22 +222,24 @@ data class OpTermNode(
     val term: TermNode
 ): Node {
     override fun buildXML(): XML = xmlList {
-        symbol { operator.value }
+        child { operator }
         xml("term") { child { term } }
     }
 }
 
-public enum class Operator(val value: String) {
+enum class Operator(val value: String): Node {
     PLUS("+"),
     MINUS("-"),
     MULTIPLY("*"),
     DIVIDED("/"),
-    AND("$"),
+    AND("&amp;"),
     OR("|"),
-    LESS_THAN("<"),
-    GREATER_THAN(">"),
-    EQUALS("=")
+    LESS_THAN("&lt;"),
+    GREATER_THAN("&gt;"),
+    EQUALS("="),
+    NEGATE("~");
 
+    override fun buildXML(): XML = xml("symbol") { just { value } }
 }
 
 interface TermNode: Node
@@ -266,16 +266,44 @@ data class VarName(val name: String): TermNode {
     override fun buildXML(): XML = xml("identifier") { just { name } }
 }
 
-// We might want to return a list
-data class ArrayAccess(val varName: VarName, val expression: Expression): TermNode
+data class ArrayAccess(val varName: VarName, val expression: Expression): TermNode {
+    override fun buildXML(): XML = xmlList {
+        child { varName }
+        symbol { "[" }
+        child { expression }
+        symbol { "]" }
+    }
+}
 
-data class TermExpression(val expression: Expression): TermNode
+data class TermExpression(val expression: Expression): TermNode {
+    override fun buildXML(): XML = xmlList {
+        symbol { "(" }
+        child { expression }
+        symbol { ")" }
+    }
+}
 
-data class UnaryOp(val op: String, val term: TermNode): TermNode
+data class UnaryOp(val op: Operator, val term: TermNode): TermNode {
+    override fun buildXML(): XML = xmlList {
+        child { op }
+        xml("term") {
+            child { term }
+        }
+    }
+}
 
 interface SubroutineCall: TermNode
 
-data class SimpleSubroutineCall(val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall
+data class SimpleSubroutineCall(val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall {
+    override fun buildXML(): XML = xmlList {
+        identifier { subroutineName }
+        symbol { "(" }
+        xml("expressionList") {
+            if (expressions.isNotEmpty()) child { list(expressions) }
+        }
+        symbol { ")" }
+    }
+}
 
 data class ComplexSubroutineCall(val identifier_: String, val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall {
     override fun buildXML(): XML = xmlList {
@@ -284,8 +312,19 @@ data class ComplexSubroutineCall(val identifier_: String, val subroutineName: St
         identifier { subroutineName }
         symbol { "(" }
         xml("expressionList") {
-            for (expression in expressions) child { expression }
+            if (expressions.isNotEmpty()) child { list(expressions) }
         }
         symbol { ")" }
+    }
+}
+
+private fun list(items: List<Node>, separator: String = ","): XMLBuilder = object: XMLBuilder {
+    override fun buildXML(): XML = xmlList {
+        for ((index, name) in items.withIndex()) {
+            child { name }
+            if (index+1 != items.size) {
+                symbol { separator }
+            }
+        }
     }
 }

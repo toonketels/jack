@@ -337,6 +337,7 @@ fun parseOp(token: Token): Result<Operator> {
         "&amp;" -> success(Operator.AND) // &
         "|" -> success(Operator.OR)
         "=" -> success(Operator.EQUALS)
+        "~" -> success(Operator.NEGATE)
         else -> failExceptionally("not a valid operator ${token.value}")
     }
 }
@@ -497,7 +498,7 @@ fun parseUnaryOp(tokens: Tokens): Result<UnaryOp?> {
 
     return requireAll {
 
-        val operator  = tokens.eat().value
+        val ( operator )  = parseOp(tokens.eat())
         val ( term ) = require(parseTerm(tokens), "term")
 
         UnaryOp(operator, term)
@@ -526,6 +527,5 @@ fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> {
                  }
              }
 
-    // @TODO unreachable code
     return success(null)
 }

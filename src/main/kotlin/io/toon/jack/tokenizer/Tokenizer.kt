@@ -2,7 +2,6 @@ package io.toon.jack.tokenizer
 
 import io.toon.jack.tokenizer.TokenType.*
 
-// @TODO get rid of enum as no longer useful
 enum class TokenType(private val representation: String) {
     KEYWORD("keyword"),
     SYMBOL("symbol"),

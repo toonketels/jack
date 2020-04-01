@@ -1,7 +1,7 @@
 package io.toon.jack.parser
 
 interface XMLBuilder {
-    fun buildXML(): XML = XMLValue("// @TODO")
+    fun buildXML(): XML
     fun toXML(): String = buildXML().toXML()
 }
 

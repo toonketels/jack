@@ -50,7 +50,7 @@ fun <I, R> zeroOrMore(tokens: MutableList<I>, parse: (MutableList<I>) -> Result<
                 }
                 .onSuccess {
                     if (it == null) return success(acc)
-                    acc.add(it!!)
+                    acc.add(it)
                 }
     }
 }
@@ -70,17 +70,9 @@ fun <I, R> zeroOrMore(tokens: MutableList<I>, parseItem: (MutableList<I>) -> Res
                 .onFailure { return failure(it) }
                 .onSuccess {
                     if (it == null) return success(acc)
-                    acc.add(it!!)
+                    acc.add(it)
                 }
     }
-}
-
-fun <I, R> atLeastOne(tokens: MutableList<I>, parse: (MutableList<I>) -> Result<R?>): Result<List<R>> {
-    return zeroOrMore(tokens, parse)
-            .onFailure { return failure(it) }
-            .onSuccess { return if (it.isEmpty()) failExceptionally("expected at least one item but got zero") else success(it) }
-
-
 }
 
 fun <I, R> atLeastOne(tokens: MutableList<I>, parseItem: (MutableList<I>) -> Result<R?>, parseSeparator: (MutableList<I>) -> Result<Any?>): Result<List<R>> {
