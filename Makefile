@@ -2,6 +2,9 @@
 
 default:
 
+build:
+	./gradlew build
+
 # make DIR=Square genDir
 genDir:
 	./gradlew run --args="src/test/resources/$(DIR)"
