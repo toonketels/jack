@@ -48,7 +48,7 @@ class App {
 
         sources
                 .forEach { (name, content) ->
-                    val converted = parseAndWrite(content).getOrThrow()
+                    val converted = parseAndWriteAST(content).getOrThrow()
                     val output = File("${name}.xml")
                     output.writeText(converted)
                     println("Created ${output.absolutePath}")

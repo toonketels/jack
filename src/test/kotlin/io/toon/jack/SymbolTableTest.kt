@@ -1,13 +1,7 @@
 package io.toon.jack
 
-import assertk.assertThat
-import assertk.assertions.isEqualTo
-import assertk.assertions.isTrue
 import io.toon.jack.Kind.*
 import io.toon.jack.parser.TypeName
-import io.toon.jack.parser.parseClass
-import io.toon.jack.tokenizer.JackTokenizer
-import io.toon.jack.tokenizer.TokenType.*
 import kotlin.test.*
 
 class SymbolTableTest {
@@ -73,7 +67,7 @@ class SymbolTableTest {
 
         val node = parse(source).getOrThrow()
 
-        val table  =createSymbolTable(node)
+        val table  = createSymbolTable(node)
 
         assertEquals(table.get("ok", "new"), Properties("ok", TypeName("boolean"), VAR, 0))
         assertEquals(table.get("other", "distance"), Properties("other", TypeName("Square"), ARGUMENT, 1))

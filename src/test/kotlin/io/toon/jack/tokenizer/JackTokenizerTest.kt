@@ -1,6 +1,5 @@
 package io.toon.jack.tokenizer
 
-import io.toon.jack.tokenizer.TokenType.*
 import kotlin.test.*
 
 class JackTokenizerTest {
@@ -118,69 +117,69 @@ class JackTokenizerTest {
 
     @Test fun tokenizeSimpleArrayTest() {
 
-        val source = javaClass.getResource("/SimpleArrayTest/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/SimpleArrayTest/Main.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/SimpleArrayTest/MainT.xml").readText()
+                "/project-10/SimpleArrayTest/MainT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun tokenizeArrayTest() {
 
-        val source = javaClass.getResource("/ArrayTest/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/ArrayTest/Main.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/ArrayTest/MainT.xml").readText()
+                "/project-10/ArrayTest/MainT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun expressionLessSquareMainTest() {
 
-        val source = javaClass.getResource("/ExpressionLessSquare/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/ExpressionLessSquare/Main.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/ExpressionLessSquare/MainT.xml").readText()
+                "/project-10/ExpressionLessSquare/MainT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun expressionLessSquareSquareTest() {
 
-        val source = javaClass.getResource("/ExpressionLessSquare/Square.jack").readText()
+        val source = javaClass.getResource("/project-10/ExpressionLessSquare/Square.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/ExpressionLessSquare/SquareT.xml").readText()
+                "/project-10/ExpressionLessSquare/SquareT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun expressionLessSquareGameTest() {
 
-        val source = javaClass.getResource("/ExpressionLessSquare/SquareGame.jack").readText()
+        val source = javaClass.getResource("/project-10/ExpressionLessSquare/SquareGame.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/ExpressionLessSquare/SquareGameT.xml").readText()
+                "/project-10/ExpressionLessSquare/SquareGameT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun squareMainTest() {
-        val source = javaClass.getResource("/Square/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/Square/Main.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/Square/MainT.xml").readText()
+                "/project-10/Square/MainT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun squareTest() {
-        val source = javaClass.getResource("/Square/Square.jack").readText()
+        val source = javaClass.getResource("/project-10/Square/Square.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/Square/SquareT.xml").readText()
+                "/project-10/Square/SquareT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }
 
     @Test fun squareGameTest() {
-        val source = javaClass.getResource("/Square/SquareGame.jack").readText()
+        val source = javaClass.getResource("/project-10/Square/SquareGame.jack").readText()
         val tokenized = this.javaClass.getResource(
-                "/Square/SquareGameT.xml").readText()
+                "/project-10/Square/SquareGameT.xml").readText()
 
         assertEquals(tokenized, JackTokenizer(source).toXml())
     }

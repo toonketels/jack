@@ -9,7 +9,7 @@ class JackParserProgramTest {
 
     @Test fun parseArrayTest() {
 
-        val source = javaClass.getResource("/ArrayTest/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/ArrayTest/Main.jack").readText()
 
         val result = parse(source).getOrThrow()
 
@@ -17,7 +17,7 @@ class JackParserProgramTest {
     }
 
     @Test fun parseSimpleArrayTest() {
-        val source = javaClass.getResource("/SimpleArrayTest/Main.jack").readText()
+        val source = javaClass.getResource("/project-10/SimpleArrayTest/Main.jack").readText()
 
         val result = parse(source).getOrThrow()
 
@@ -25,21 +25,21 @@ class JackParserProgramTest {
     }
 
     @Test fun parseSquareMain() {
-        val sourceMain = javaClass.getResource("/Square/Main.jack").readText()
+        val sourceMain = javaClass.getResource("/project-10/Square/Main.jack").readText()
 
         val resultMain = parse(sourceMain).getOrThrow()
         assertNotNull(resultMain)
     }
 
     @Test fun parseSquareSquare() {
-        val sourceMain = javaClass.getResource("/Square/Square.jack").readText()
+        val sourceMain = javaClass.getResource("/project-10/Square/Square.jack").readText()
 
         val resultMain = parse(sourceMain).getOrThrow()
         assertNotNull(resultMain)
     }
 
     @Test fun parseSquareGame() {
-        val sourceMain = javaClass.getResource("/Square/SquareGame.jack").readText()
+        val sourceMain = javaClass.getResource("/project-10/Square/SquareGame.jack").readText()
 
         val resultMain = parse(sourceMain).getOrThrow()
         assertNotNull(resultMain)

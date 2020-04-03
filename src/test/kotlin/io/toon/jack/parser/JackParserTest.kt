@@ -6,7 +6,6 @@ import io.toon.jack.parser.ClassVarStaticModifier.FIELD
 import io.toon.jack.parser.Operator.PLUS
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
 import io.toon.jack.tokenizer.*
-import org.junit.Ignore
 import org.junit.Test
 
 
