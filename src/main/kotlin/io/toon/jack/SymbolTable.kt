@@ -11,6 +11,7 @@ typealias PropertiesMap = MutableMap<String, Properties>
 class SymbolTable {
     val classTable: PropertiesMap = mutableMapOf()
     val subroutineTables: MutableMap<String, PropertiesMap> = mutableMapOf()
+    var currentSubroutine: String? = null
 
     fun addTableSymbol(properties: Properties) {
         classTable.put(properties.name, properties)
@@ -27,11 +28,20 @@ class SymbolTable {
     }
 
     fun get(varName: String, subroutineName: String): Properties? {
-        return subroutineTables[subroutineName]?.get(varName) ?: get(varName)
+        return subroutineTables[subroutineName]?.get(varName) ?: classTable[varName]
     }
 
     fun get(varName: String): Properties? {
-        return classTable[varName]
+        return if (currentSubroutine == null) classTable[varName]
+        else get(varName, currentSubroutine!!)
+    }
+
+    fun enterSubroutine(subroutineName: String) {
+        currentSubroutine = subroutineName
+    }
+
+    fun leaveSubroutine() {
+        currentSubroutine == null
     }
 
 }

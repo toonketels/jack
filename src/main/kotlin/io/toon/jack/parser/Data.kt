@@ -1,12 +1,21 @@
 package io.toon.jack.parser
 
+import io.toon.jack.Kind
+import io.toon.jack.SymbolTable
+import io.toon.jack.parser.ClassVarStaticModifier.FIELD
+import io.toon.jack.parser.Segment.*
+import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
 
+
+// @TODO have Node implement CodeGen
 interface Node: XMLBuilder {}
 
 data class ClassNode(
         val name: String,
         val classVarDeclarations: List<ClassVarDeclarationNode> = listOf(),
-        val subroutineDeclarations: List<SubroutineDeclarationNode> = listOf()): Node {
+        val subroutineDeclarations: List<SubroutineDeclarationNode> = listOf()): Node, CodeGen {
+
+    val fieldCount = classVarDeclarations.fold(0) { count, decl -> count + decl.fieldCount }
 
     override fun buildXML(): XML = xml("class") {
         keyword { "class" }
@@ -16,12 +25,18 @@ data class ClassNode(
         subroutineDeclarations.forEach { child { it } }
         symbol { "}" }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, this) {
+        subroutineDeclarations.forEach { addStatements(it) }
+    }
 }
 
 data class ClassVarDeclarationNode(
         val staticModifier: ClassVarStaticModifier,
         val typeName: TypeName,
         val varNames: List<VarName>): Node {
+
+    val fieldCount = if (staticModifier == FIELD) varNames.size else 0
 
     override fun buildXML(): XML = xml("classVarDec") {
         child { staticModifier }
@@ -49,7 +64,8 @@ data class SubroutineDeclarationNode(
         val subroutineName: String,
         val parameterList: List<Parameter>,
         val body: SubroutineBodyNode
-): Node {
+): Node, CodeGen {
+
     override fun buildXML(): XML = xml("subroutineDec") {
         child { declarationType }
         child { returnType }
@@ -60,7 +76,23 @@ data class SubroutineDeclarationNode(
         }
         symbol { ")" }
         child { body }
+    }
 
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+
+        symbols.enterSubroutine(subroutineName)
+
+        assert(classNode != null) { "Expected the classNode pased to generate the function name" }
+        function("${classNode!!.name}.$subroutineName", body.varCount)
+        if (declarationType == CONSTRUCTOR) {
+            push(CONSTANT, classNode!!.fieldCount)
+            call("Memory.alloc", 1)
+            pop(POINTER, 0)
+        }
+
+        addStatements(body)
+
+        symbols.leaveSubroutine()
     }
 }
 
@@ -85,7 +117,10 @@ data class Parameter(
 data class SubroutineBodyNode(
         val varDeclarations: List<SubroutineVarDeclarationNode>,
         val statements: List<Statement>
-): Node {
+): Node, CodeGen {
+
+    val varCount = varDeclarations.fold(0) { total, declaration -> total + declaration.varCount }
+
     override fun buildXML(): XML = xml("subroutineBody") {
         symbol { "{" }
 
@@ -97,12 +132,19 @@ data class SubroutineBodyNode(
 
         symbol { "}" }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        statements.forEach { addStatements(it) }
+    }
 }
 
 data class SubroutineVarDeclarationNode(
         val typeName: TypeName,
         val varNames: List<VarName>
 ): Node {
+
+    val varCount: Int = varNames.size
+
     override fun buildXML(): XML = xml("varDec") {
         keyword { "var" }
         child { typeName }
@@ -112,7 +154,7 @@ data class SubroutineVarDeclarationNode(
     }
 }
 
-interface Statement: Node
+interface Statement: Node, CodeGen
 
 data class LetStatement private constructor(
         val varName: VarName?,
@@ -134,6 +176,24 @@ data class LetStatement private constructor(
             symbol { "=" }
             child { rightExpression }
             symbol { ";" }
+        }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+
+        addStatements(rightExpression)
+
+        // @TODO array access
+        if (varName != null) {
+            // @TODO delegate to varName
+            // @TODO better assertions
+            val (_, type, kind, index) = symbols.get(varName!!.name)!!
+            when(kind) {
+                Kind.STATIC -> pop(STATIC, index)
+                Kind.FIELD -> pop(THIS, index)
+                Kind.ARGUMENT -> pop(ARGUMENT, index)
+                Kind.VAR -> pop(LOCAL, index)
+            }
         }
     }
 }
@@ -164,6 +224,10 @@ data class IfStatement(
             symbol { "}" }
         }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        throw NotImplementedError()
+    }
 }
 
 data class DoStatement(
@@ -174,6 +238,11 @@ data class DoStatement(
         child { subroutineCall }
         symbol { ";" }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        addStatements(subroutineCall)
+        pop(TEMP, 0)
+    }
 }
 
 data class ReturnStatement(
@@ -183,6 +252,12 @@ data class ReturnStatement(
         keyword { "return" }
         if (expression != null) child { expression }
         symbol { ";" }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        if (expression == null) push(CONSTANT, 0)
+        else addStatements(expression)
+        returnIt()
     }
 }
 
@@ -201,12 +276,16 @@ data class WhileStatement(
         }
         symbol { "}" }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        throw NotImplementedError()
+    }
 }
 
 data class Expression(
         val term: TermNode,
         val opTerm: OpTermNode? = null
-): Node {
+): Node, CodeGen {
 
     override fun buildXML(): XML {
         return xml("expression") {
@@ -215,38 +294,92 @@ data class Expression(
             if (opTerm != null) { child { opTerm } }
         }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        addStatements(term)
+        if (opTerm != null) addStatements(opTerm)
+    }
 }
 
 data class OpTermNode(
     val operator: Operator,
     val term: TermNode
-): Node {
+): Node, CodeGen {
     override fun buildXML(): XML = xmlList {
         child { operator }
         xml("term") { child { term } }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        addStatements(term)
+        addStatements(operator)
+    }
 }
 
-enum class Operator(val value: String): Node {
-    PLUS("+"),
-    MINUS("-"),
-    MULTIPLY("*"),
-    DIVIDED("/"),
-    AND("&amp;"),
-    OR("|"),
-    LESS_THAN("&lt;"),
-    GREATER_THAN("&gt;"),
-    EQUALS("="),
-    NEGATE("~");
+enum class Operator(val value: String): Node, CodeGen {
+    PLUS("+") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            add()
+        }
+    },
+    MINUS("-") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    MULTIPLY("*") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            call("Math.multiply", 2)
+        }
+    },
+    DIVIDED("/") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    AND("&amp;") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    OR("|") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    LESS_THAN("&lt;") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    GREATER_THAN("&gt;") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    EQUALS("=") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    },
+    NEGATE("~") {
+        override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+            throw NotImplementedError()
+        }
+    };
 
     override fun buildXML(): XML = xml("symbol") { just { value } }
 }
 
-interface TermNode: Node
+interface TermNode: Node, CodeGen
 
 data class IntegerConstant(val value: Int): TermNode {
     override fun buildXML(): XML = xml("integerConstant") {
         just { value.toString() }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        push(CONSTANT, value)
     }
 }
 
@@ -254,16 +387,40 @@ data class StringConstant(val value: String): TermNode {
     override fun buildXML(): XML = xml("stringConstant") {
         just { value  }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        throw NotImplementedError()
+    }
 }
 
 data class KeywordConstant(val value: String): TermNode {
     override fun buildXML(): XML = xml("keyword") {
         just { value }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        // @TODO how do we know its only used as a termnode here?
+        if (value == "this") push(POINTER, 0)
+        else throw NotImplementedError()
+    }
 }
 
 data class VarName(val name: String): TermNode {
     override fun buildXML(): XML = xml("identifier") { just { name } }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        // @TODO we dont know if its for accessing or assignment
+        // @TODO better assertions
+        val (_, type, kind, index) = symbols.get(name)!!
+
+        when(kind) {
+            Kind.STATIC -> push(STATIC, index)
+            Kind.FIELD -> throw NotImplementedError("FIELd varName not implemeneted")
+            Kind.ARGUMENT -> push(ARGUMENT, index)
+            Kind.VAR -> push(LOCAL, index)
+        }
+
+    }
 }
 
 data class ArrayAccess(val varName: VarName, val expression: Expression): TermNode {
@@ -273,6 +430,10 @@ data class ArrayAccess(val varName: VarName, val expression: Expression): TermNo
         child { expression }
         symbol { "]" }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        throw NotImplementedError()
+    }
 }
 
 data class TermExpression(val expression: Expression): TermNode {
@@ -280,6 +441,11 @@ data class TermExpression(val expression: Expression): TermNode {
         symbol { "(" }
         child { expression }
         symbol { ")" }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        // @TODO should change order of operations
+        addStatements(expression)
     }
 }
 
@@ -290,9 +456,14 @@ data class UnaryOp(val op: Operator, val term: TermNode): TermNode {
             child { term }
         }
     }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        addStatements(term)
+        addStatements(op)
+    }
 }
 
-interface SubroutineCall: TermNode
+interface SubroutineCall: TermNode, CodeGen
 
 data class SimpleSubroutineCall(val subroutineName: String, val expressions: List<Expression> = listOf()): SubroutineCall {
     override fun buildXML(): XML = xmlList {
@@ -302,6 +473,11 @@ data class SimpleSubroutineCall(val subroutineName: String, val expressions: Lis
             if (expressions.isNotEmpty()) child { list(expressions) }
         }
         symbol { ")" }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        expressions.forEach { addStatements(it) }
+        call("subroutineName", expressions.size)
     }
 }
 
@@ -315,6 +491,11 @@ data class ComplexSubroutineCall(val identifier_: String, val subroutineName: St
             if (expressions.isNotEmpty()) child { list(expressions) }
         }
         symbol { ")" }
+    }
+
+    override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        expressions.forEach { addStatements(it) }
+        call("$identifier_.$subroutineName", expressions.size)
     }
 }
 
