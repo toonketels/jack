@@ -197,7 +197,7 @@ fun parseLetStatement(tokens: Tokens): Result<LetStatement?> {
     return requireAll {
 
         val ( _a ) = parseKeyword("let")(tokens.eat())
-        val ( arrayAccess ) = parseArrayAccess(tokens)
+        val ( arrayAccess ) = parseArrayAccess(tokens, true)
         // @TOOD refactor
         if (arrayAccess == null) {
             val ( varName ) = parseVarName(tokens.eat())
@@ -505,7 +505,9 @@ fun parseUnaryOp(tokens: Tokens): Result<UnaryOp?> {
     }
 }
 
-fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> {
+fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> = parseArrayAccess(tokens, false)
+
+fun parseArrayAccess(tokens: Tokens, assignment: Boolean = false): Result<ArrayAccess?> {
 
      tokens.peak(2)
              .onFailure {
@@ -523,7 +525,7 @@ fun parseArrayAccess(tokens: Tokens): Result<ArrayAccess?> {
                      val ( expression ) = require(parseExpression(tokens), "expression")
                      val ( _b ) = parseSymbol("]")(tokens.eat())
 
-                     ArrayAccess(varName, expression)
+                     ArrayAccess(varName, expression, assignment)
                  }
              }
 

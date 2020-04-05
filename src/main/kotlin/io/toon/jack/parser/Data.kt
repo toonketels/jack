@@ -5,6 +5,7 @@ import io.toon.jack.SymbolTable
 import io.toon.jack.parser.ClassVarStaticModifier.FIELD
 import io.toon.jack.parser.Segment.*
 import io.toon.jack.parser.SubroutineDeclarationType.CONSTRUCTOR
+import io.toon.jack.parser.SubroutineDeclarationType.METHOD
 
 
 // @TODO have Node implement CodeGen
@@ -27,6 +28,7 @@ data class ClassNode(
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, this) {
+        symbols.defineClass(name)
         subroutineDeclarations.forEach { addStatements(it) }
     }
 }
@@ -87,6 +89,10 @@ data class SubroutineDeclarationNode(
         if (declarationType == CONSTRUCTOR) {
             push(CONSTANT, classNode!!.fieldCount)
             call("Memory.alloc", 1)
+            pop(POINTER, 0)
+        }
+        if (declarationType == METHOD) {
+            push(ARGUMENT, 0)
             pop(POINTER, 0)
         }
 
@@ -183,17 +189,15 @@ data class LetStatement private constructor(
 
         addStatements(rightExpression)
 
-        // @TODO array access
         if (varName != null) {
             // @TODO delegate to varName
             // @TODO better assertions
             val (_, type, kind, index) = symbols.get(varName!!.name)!!
-            when(kind) {
-                Kind.STATIC -> pop(STATIC, index)
-                Kind.FIELD -> pop(THIS, index)
-                Kind.ARGUMENT -> pop(ARGUMENT, index)
-                Kind.VAR -> pop(LOCAL, index)
-            }
+            pop(toSegment(kind), index)
+        }
+        if (arrayAccess != null) {
+            addStatements(arrayAccess)
+
         }
     }
 }
@@ -226,7 +230,23 @@ data class IfStatement(
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-        throw NotImplementedError()
+
+        val labelPrefix = symbols.genLabel("if")
+        val withoutElse = altStatements.isEmpty()
+
+        addStatements(predicate)
+        not()
+        if (withoutElse) {
+            ifGoto("$labelPrefix.end")
+            statements.forEach { addStatements(it) }
+        } else {
+            ifGoto("$labelPrefix.else")
+            statements.forEach { addStatements(it) }
+            goto("$labelPrefix.end")
+            label("$labelPrefix.else")
+            altStatements.forEach { addStatements(it) }
+        }
+        label("$labelPrefix.end")
     }
 }
 
@@ -278,7 +298,16 @@ data class WhileStatement(
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-        throw NotImplementedError()
+
+        val labelPrefix = symbols.genLabel("while")
+
+        label("$labelPrefix.start")
+        addStatements(predicate)
+        not()
+        ifGoto("$labelPrefix.end")
+        statements.forEach { addStatements(it) }
+        goto("$labelPrefix.start")
+        label("$labelPrefix.end")
     }
 }
 
@@ -324,7 +353,7 @@ enum class Operator(val value: String): Node, CodeGen {
     },
     MINUS("-") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            sub()
         }
     },
     MULTIPLY("*") {
@@ -334,37 +363,37 @@ enum class Operator(val value: String): Node, CodeGen {
     },
     DIVIDED("/") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            call("Math.divide", 2)
         }
     },
     AND("&amp;") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            and()
         }
     },
     OR("|") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            or()
         }
     },
     LESS_THAN("&lt;") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+           lt()
         }
     },
     GREATER_THAN("&gt;") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            gt()
         }
     },
     EQUALS("=") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            eq()
         }
     },
     NEGATE("~") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            throw NotImplementedError()
+            neg()
         }
     };
 
@@ -389,7 +418,12 @@ data class StringConstant(val value: String): TermNode {
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-        throw NotImplementedError()
+        push(CONSTANT, value.length)
+        call("String.new", 1)
+        value.chars().forEach {
+            push(CONSTANT, it)
+            call("String.appendChar", 2)
+        }
     }
 }
 
@@ -400,8 +434,15 @@ data class KeywordConstant(val value: String): TermNode {
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
         // @TODO how do we know its only used as a termnode here?
-        if (value == "this") push(POINTER, 0)
-        else throw NotImplementedError()
+        when (value) {
+            "this" -> push(POINTER, 0)
+            "null", "false" -> push(CONSTANT, 0)
+            "true" -> {
+                push(CONSTANT, 1)
+                neg()
+            }
+            else -> throw NotImplementedError()
+        }
     }
 }
 
@@ -415,7 +456,7 @@ data class VarName(val name: String): TermNode {
 
         when(kind) {
             Kind.STATIC -> push(STATIC, index)
-            Kind.FIELD -> throw NotImplementedError("FIELd varName not implemeneted")
+            Kind.FIELD -> push(THIS, index)
             Kind.ARGUMENT -> push(ARGUMENT, index)
             Kind.VAR -> push(LOCAL, index)
         }
@@ -423,7 +464,7 @@ data class VarName(val name: String): TermNode {
     }
 }
 
-data class ArrayAccess(val varName: VarName, val expression: Expression): TermNode {
+data class ArrayAccess(val varName: VarName, val expression: Expression, val assignment: Boolean = false): TermNode {
     override fun buildXML(): XML = xmlList {
         child { varName }
         symbol { "[" }
@@ -432,7 +473,12 @@ data class ArrayAccess(val varName: VarName, val expression: Expression): TermNo
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-        throw NotImplementedError()
+        val (_, type, kind, index) = symbols.get(varName!!.name)!!
+        push(toSegment(kind), index)
+        addStatements(expression)
+        add()
+        pop(POINTER, 1)
+        if (assignment) pop(THAT, 0) else push(THAT, 0)
     }
 }
 
@@ -494,8 +540,16 @@ data class ComplexSubroutineCall(val identifier_: String, val subroutineName: St
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-        expressions.forEach { addStatements(it) }
-        call("$identifier_.$subroutineName", expressions.size)
+        val properties = symbols.get(identifier_)
+        if (properties != null) {
+            val (name, type, kind, index) = properties
+            push(toSegment(kind), index)
+            expressions.forEach { addStatements(it) }
+            call("${type.name}.$subroutineName", expressions.size + 1)
+        } else {
+            expressions.forEach { addStatements(it) }
+            call("$identifier_.$subroutineName", expressions.size)
+        }
     }
 }
 
@@ -508,4 +562,10 @@ private fun list(items: List<Node>, separator: String = ","): XMLBuilder = objec
             }
         }
     }
+}
+private fun toSegment(kind: Kind): Segment = when(kind) {
+    Kind.STATIC -> STATIC
+    Kind.FIELD -> THIS
+    Kind.ARGUMENT -> ARGUMENT
+    Kind.VAR -> LOCAL
 }

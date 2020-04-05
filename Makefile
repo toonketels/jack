@@ -5,13 +5,14 @@ default:
 build:
 	./gradlew build
 
-# make DIR=Square genDir
+# make DIR=src/test/resources/project-11/Average genDir
 genDir:
-	./gradlew run --args="src/test/resources/$(DIR)"
+	./gradlew run --args="$(DIR)"
+	mv *.vm "$(DIR)"
 
 # make FILE=SimpleCall gen
 gen:
-	./gradlew run --args="src/test/resources/$(FILE)/$(FILE).jack"
+	./gradlew run --args="$(FILE)"
 
 clean:
 	rm *.xml

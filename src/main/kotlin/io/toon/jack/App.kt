@@ -48,8 +48,10 @@ class App {
 
         sources
                 .forEach { (name, content) ->
-                    val converted = parseAndWriteAST(content).getOrThrow()
-                    val output = File("${name}.xml")
+//                    val converted = parseAndWriteAST(content).getOrThrow()
+//                    val output = File("${name}.xml")
+                    val converted = parseAndGenCode(content).getOrThrow()
+                    val output = File("${name}.vm")
                     output.writeText(converted)
                     println("Created ${output.absolutePath}")
                 }
