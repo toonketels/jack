@@ -377,6 +377,33 @@ class CodeGenTest {
         assertEquals(expected, result)
     }
 
+    @Test fun negativeNumbersTest() {
+        val source = """
+            class Square {
+                function int doSomething() {
+                    var int result;
+                    let result = 4 * -5;
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        var expected =  """
+            function Square.doSomething 1
+            push constant 4
+            push constant 5
+            neg
+            call Math.multiply 2
+            pop local 0
+            push local 0
+            return
+        """.trimIndent()
+
+        val result = parseAndGenCode(source).getOrThrow()
+
+        assertEquals(expected, result)
+    }
+
     @Test fun seven() {
         val expected = """
             function Main.main 0

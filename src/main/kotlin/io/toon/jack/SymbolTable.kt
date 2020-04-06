@@ -79,13 +79,15 @@ fun createSymbolTable(node: ClassNode): SymbolTable {
 }
 
 private fun createSubroutineVarProperties(subroutine: SubroutineDeclarationNode): List<Properties> {
+    // @TODO maybe reduce instead?
+    var index = 0
     return subroutine
             .body
             .varDeclarations
             .mapIndexed { declarationIndex, (typeName, varNames) ->
 
                 varNames.mapIndexed { varIndex, (name) ->
-                    Properties(name, typeName, VAR, declarationIndex + varIndex)
+                    Properties(name, typeName, VAR, index++)
                 }
 
             }
@@ -106,6 +108,9 @@ private fun createSubroutineArgumentProperties(subroutine: SubroutineDeclaration
 
 private fun createClassVarPropertiesByKind(_kind: ClassVarStaticModifier, declarations: List<ClassVarDeclarationNode>): List<Properties> {
 
+    // @TODO maybe reduce?
+        var index  = 0
+
         return declarations.mapIndexed { declarationIndex, (_, type, names) ->
 
             names.mapIndexed { varIndex, (name) ->
@@ -114,9 +119,7 @@ private fun createClassVarPropertiesByKind(_kind: ClassVarStaticModifier, declar
                     FIELD -> Kind.FIELD
                 }
 
-                val index = declarationIndex + varIndex
-
-                Properties(name, type, kind, index)
+                Properties(name, type, kind, index++)
             }
         }.flatten()
 }

@@ -325,7 +325,7 @@ class JackParserTest {
 
         val result = parseExpression(tokens).getOrThrow()!!
 
-        assertThat(result).isEqualTo(Expression(UnaryOp(Operator.MINUS, IntegerConstant(20))))
+        assertThat(result).isEqualTo(Expression(UnaryOpNode(Operator.MINUS, IntegerConstant(20))))
     }
 
     @Test

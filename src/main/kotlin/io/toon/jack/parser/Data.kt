@@ -391,14 +391,16 @@ enum class Operator(val value: String): Node, CodeGen {
             eq()
         }
     },
-    NEGATE("~") {
+    NOT("~") {
         override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
-            neg()
+            not()
         }
     };
 
     override fun buildXML(): XML = xml("symbol") { just { value } }
 }
+
+enum class UnaryOp()
 
 interface TermNode: Node, CodeGen
 
@@ -495,7 +497,7 @@ data class TermExpression(val expression: Expression): TermNode {
     }
 }
 
-data class UnaryOp(val op: Operator, val term: TermNode): TermNode {
+data class UnaryOpNode(val op: Operator, val term: TermNode): TermNode {
     override fun buildXML(): XML = xmlList {
         child { op }
         xml("term") {
@@ -505,7 +507,11 @@ data class UnaryOp(val op: Operator, val term: TermNode): TermNode {
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
         addStatements(term)
-        addStatements(op)
+        when(op) {
+            // @TODO branch off unary operators from operators
+            Operator.MINUS -> neg()
+            else -> addStatements(op)
+        }
     }
 }
 
@@ -522,8 +528,9 @@ data class SimpleSubroutineCall(val subroutineName: String, val expressions: Lis
     }
 
     override fun genCode(symbols: SymbolTable, classNode: ClassNode?): List<String> = genVMCode(symbols, classNode) {
+        push(POINTER, 0)
         expressions.forEach { addStatements(it) }
-        call("subroutineName", expressions.size)
+        call("${symbols.className!!}.$subroutineName", expressions.size + 1)
     }
 }
 

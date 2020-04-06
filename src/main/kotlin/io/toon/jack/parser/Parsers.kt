@@ -337,7 +337,7 @@ fun parseOp(token: Token): Result<Operator> {
         "&amp;" -> success(Operator.AND) // &
         "|" -> success(Operator.OR)
         "=" -> success(Operator.EQUALS)
-        "~" -> success(Operator.NEGATE)
+        "~" -> success(Operator.NOT)
         else -> failExceptionally("not a valid operator ${token.value}")
     }
 }
@@ -492,7 +492,7 @@ fun parseTermExpression(tokens: Tokens): Result<TermExpression?> {
     }
 }
 
-fun parseUnaryOp(tokens: Tokens): Result<UnaryOp?> {
+fun parseUnaryOp(tokens: Tokens): Result<UnaryOpNode?> {
 
     if (parseSymbol("-")(tokens.peak()).isFailure && parseSymbol("~")(tokens.peak()).isFailure) return success(null)
 
@@ -501,7 +501,7 @@ fun parseUnaryOp(tokens: Tokens): Result<UnaryOp?> {
         val ( operator )  = parseOp(tokens.eat())
         val ( term ) = require(parseTerm(tokens), "term")
 
-        UnaryOp(operator, term)
+        UnaryOpNode(operator, term)
     }
 }
 
